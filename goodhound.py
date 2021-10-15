@@ -4,6 +4,13 @@ import sys
 import argparse
 import pandas
 
+def banner():
+    print("""   ______                ____  __                      __""")
+    print("""  / ____/___  ____  ____/ / / / /___  __  ______  ____/ /""")
+    print(""" / / __/ __ \/ __ \/ __  / /_/ / __ \/ / / / __ \/ __  / """)
+    print("""/ /_/ / /_/ / /_/ / /_/ / __  / /_/ / /_/ / / / / /_/ /  """)
+    print(  "\____/\____/\____/\__,_/_/ /_/\____/\__,_/_/ /_/\__,_/   """)
+
 def arguments():
     argparser = argparse.ArgumentParser(description="BloodHound Wrapper to determine the Busiest Attack Paths to High Value targets.", add_help=True, epilog="Attackers think in graphs, Defenders think in actions, Management think in charts.")
     parsegroupdb = argparser.add_argument_group('Neo4jConnection')
@@ -32,7 +39,7 @@ def shortestpath(graph, starttime):
     query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) return distinct(g.name) as groupname, min(length(p)) as hops"""
     query_test="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops""" 
     print("Running query")
-    groupswithpath=graph.run(query_shortestpath)
+    groupswithpath=graph.run(query_test)
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     print("Finished query in : {} Minutes".format(querytime))
     return groupswithpath
@@ -43,7 +50,7 @@ def busiestpath(groupswithpath, graph, args):
     totalenablednonadminusers = int(graph.run(totalenablednonadminsquery).evaluate())
     usercount=[]
     grouploopstart = datetime.now()
-    print("Starting group loop")
+    print("Counting Users in Groups")
     for g in groupswithpath:
         group = g.get('groupname')
         hops = g.get('hops')
@@ -57,7 +64,7 @@ def busiestpath(groupswithpath, graph, args):
     top = (sorted(usercount, key=lambda i: -i[1])[0:args.results])
     grouploopfinishtime = datetime.now()
     grouplooptime = round((grouploopfinishtime-grouploopstart).total_seconds() / 60)
-    print("\nFinished group loop in: {} minutes.".format(grouplooptime))
+    #print("\nFinished counting users in: {} minutes.".format(grouplooptime))
     return top
 
 def query(top, starttime):
@@ -74,7 +81,7 @@ def query(top, starttime):
         results.append(result)
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
-    print("Total runtime: {} minutes.".format(totalruntime), end='\n\n')
+    print("\nTotal runtime: {} minutes.".format(totalruntime), end='\n\n')
     return results
 
 def hopcount(top, graph, starttime, args):
@@ -118,6 +125,7 @@ def output(results, args):
 
 def main():
     args = arguments()
+    banner()
     graph = db_connect(args)
     starttime = datetime.now()
     groupswithpath = shortestpath(graph, starttime)
