@@ -13,6 +13,7 @@ Uses neo4j and Sharphound output to determine the busiest paths to high value ta
 - [ ] Documentation (requirements, pandas, py2neo)
 - [ ] Limit query time counting to verbose mode (use loggy?)
 - [ ] Query Performance (is threading or neo4j tuning an option?)
+- [x] Add count of total distinct users that have any path
 - [ ] add ability to setup schema
 - [ ] add ability to warm up database if possible.
 - [ ] only the shortest path for each busiest path is displayed. If one pathway has many paths this will be hidden. Unsure if this is an issue or not.
