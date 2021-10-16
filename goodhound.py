@@ -38,9 +38,12 @@ def db_connect(args):
 def schema(graph, args):
     try:
         with open(args.schema,'r') as schema_query:
-            lines = schema_query.read()
-            query = """%s""" %lines
-            graph.run(lines)
+            line = schema_query.readline()
+            while line:
+                graph.run(line)
+                line = schema_query.readline()
+        print("Written schema!")        
+        return()
     except:
         print("Error setting custom schema.")
         sys.exit(1)
@@ -50,7 +53,7 @@ def shortestpath(graph, starttime):
     query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) return distinct(g.name) as groupname, min(length(p)) as hops"""
     query_test="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops""" 
     print("Running query")
-    groupswithpath=graph.run(query_shortestpath)
+    groupswithpath=graph.run(query_test)
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     print("Finished query in : {} Minutes".format(querytime))
     return groupswithpath
@@ -115,7 +118,9 @@ def output(results, grandtotals, args):
         print("-------------\n")
         print (resultsdf.to_string(index=False))
     elif args.output_format == ("md" or "markdown"):
+        print("# GRAND TOTALS")
         print (totaldf.to_markdown(index=False))
+        print("## BUSIEST PATHS")
         print (resultsdf.to_markdown(index=False))
     else:
         mergeddf = totaldf.append(resultsdf, ignore_index=True, sort=False)
