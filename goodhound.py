@@ -103,34 +103,6 @@ def query(top_paths, starttime):
     print("\nTotal runtime: {} minutes.".format(totalruntime), end='\n\n')
     return results
 
-def hopcount(top_paths, graph, starttime, args):
-    """Calculate the shortest number of hops for each of the busiest paths and produce a cypher query to enter into Bloodhound. Returns a list of results."""
-    hoploopstart = datetime.now()
-    print("\nStarted hop loop")
-    num_hops = 0
-    top_hops = []
-    for t in top_paths:
-        group = t[0]
-        num_users = int(t[1])
-        percentage = float(t[2])
-        for h in range(1,5):
-            previous_hop = h - 1
-            print (f"Trying hop number {h} for {group}............................", end='\r')
-            query_num_hops = """match p=((g:Group {name:"%s"})-[*%s..%s]->(n {highvalue:true})) return p""" %(group, previous_hop, h)
-            if (graph.run(query_num_hops).evaluate()):
-                num_hops = int(h)
-                result = [group, num_users, percentage, num_hops, query_num_hops]
-                top_hops.append(result)
-                break
-            else:
-                h += 1
-    hoploopfinish = datetime.now()  
-    hoplooptime = round((hoploopfinish - hoploopstart).total_seconds() / 60)
-    print("\nFinished hop loop in: {} minutes.".format(hoplooptime))
-    totalruntime = round((hoploopfinish - starttime).total_seconds() / 60)
-    print("Total runtime: {} minutes.".format(totalruntime), end='\n\n')
-    return top_hops
-
 def output(results, grandtotals, args):
     pd.set_option('display.max_colwidth', None)
     totaldf = pd.DataFrame(grandtotals)
@@ -159,7 +131,6 @@ def main():
         schema(graph, args)
     groupswithpath = shortestpath(graph, starttime)
     top_paths, grandtotals = busiestpath(groupswithpath, graph, args)
-    #top_hops = hopcount(top, graph, starttime, args)
     results = query(top_paths, starttime)
     output(results, grandtotals, args)
 
