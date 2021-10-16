@@ -18,12 +18,13 @@ def arguments():
     parsegroupdb.add_argument("-p", "--password", default="neo4j", help="Neo4j Database Password (Default: neo4j)", type=str)
     parsegroupdb.add_argument("-s", "--server", default="bolt://localhost:7687", help="Neo4j server Default: bolt://localhost:7687)", type=str)
     parsegroupoutput = argparser.add_argument_group('Output Formats')
-    parsegroupoutput.add_argument("-o", "--output-format", default="stdout", help="Output formats supported: stdout, csv, md (markdown).", type=str, choices=["stdout", "csv", "md", "markdown"])
+    parsegroupoutput.add_argument("-o", "--output-format", default="stdout", help="Output formats supported: stdout, csv, md (markdown). Default: stdout.", type=str, choices=["stdout", "csv", "md", "markdown"])
     parsegroupoutput.add_argument("-f", "--output-filename", default="goodhound.csv", help="File path and name to save the csv output.", type=str)
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
-    parsegroupqueryparams.add_argument("-r", "--results", default="5", help=("The number of busiest paths to process. The higher the number the longer the query will take. Default: 5"), type=int)
+    parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
+    parsegroupqueryparams.add_argument("-q", "--query", help="Optionally add a custom query to replace the default busiest paths query. This can be used to run a query that perhaps does not take as long as the full run. The format should maintain the 'match p=shortestpath((g:Group)-[]->(n)) return distinct(g.name) as groupname, min(length(p)) as hops' structure so that it doesn't derp up the rest of the script. e.g. 'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops'", type=str)
     parsegroupschema = argparser.add_argument_group('Schema')
-    parsegroupschema.add_argument("-sch", "--schema", help="Optionally select in a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets.", type=str)
+    parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
     args = argparser.parse_args()
     return args
 
@@ -48,12 +49,19 @@ def schema(graph, args):
         print("Error setting custom schema.")
         sys.exit(1)
 
-def shortestpath(graph, starttime):
+def shortestpath(graph, starttime, args):
     """Runs a shortest path query for all AD groups to high value targets. Returns a list of groups."""
-    query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) return distinct(g.name) as groupname, min(length(p)) as hops"""
-    query_test="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops""" 
+    if args.query:
+        query_shortestpath=f"%s" %args.query
+    else:
+        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) return distinct(g.name) as groupname, min(length(p)) as hops"""
+    #query_test="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops""" 
     print("Running query")
-    groupswithpath=graph.run(query_test)
+    try:
+        groupswithpath=graph.run(query_shortestpath)
+    except:
+        print("There is a problem with the inputted query. If you have entered a custom query check the syntax.")
+        sys.exit(1)
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     print("Finished query in : {} Minutes".format(querytime))
     return groupswithpath
@@ -134,7 +142,7 @@ def main():
     starttime = datetime.now()
     if args.schema:
         schema(graph, args)
-    groupswithpath = shortestpath(graph, starttime)
+    groupswithpath = shortestpath(graph, starttime, args)
     top_paths, grandtotals = busiestpath(groupswithpath, graph, args)
     results = query(top_paths, starttime)
     output(results, grandtotals, args)
