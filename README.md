@@ -18,7 +18,7 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 
 All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (http://localhost:7474) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the top 5 busiest paths to the screen.
 
-The neo4j database will need to already have the Sharphound collector output uploaded using the Upload button in the Bloodhound GUI.
+The neo4j database will need to already have the Sharphound collector output uploaded using the Upload button in the Bloodhound GUI. An example Sharphound output collected using [Bad Blood](https://github.com/davidprowe/BadBlood) on a [Detection Labs](https://detectionlab.network/) can be found in this repo at [/Sample%20SharpHound%20Output](/Sample%20SharpHound%20Output).
 
 The output shows a total number of unique users that have a path to a HighValue target.  
 It then breaks this down to individual paths, ordered by the busiest path. 
