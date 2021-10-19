@@ -24,7 +24,7 @@ The output shows a total number of unique users that have a path to a HighValue 
 It then breaks this down to individual paths, ordered by the busiest path. 
 Each path is then displayed showing the starting group, the number of non-admin users within that path, the number of hops and also a Cypher query. This cypher query can be directly copied into the Custom query bar in Bloodhound for a visual representation of the attack path. 
 
-![Example Output](images\example-output.png)  
+![Example Output](images/example-output.png)  
 ![BloodHound Attack Path](https://github.com/thegoatreich/GoodHound/blob/dev/images/bloodhound-raw-query.png)  
 
 
