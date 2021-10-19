@@ -16,7 +16,7 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 
 ### Default behaviour
 
-All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (http://localhost:7474) and credentials (neo4j:neo4j) and calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup and print the top 5 busiest paths to the screen.
+All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (http://localhost:7474) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the top 5 busiest paths to the screen.
 
 The neo4j database will need to already have the Sharphound collector output uploaded using the Upload button in the Bloodhound GUI.
 
@@ -47,7 +47,7 @@ match (c:Computer {name:'DBSERVER01@YOURDOMAIN.LOCAL'}) set c.highvalue=TRUE
 The schema can contain multiple queries, each on a separate line.
 
 #### Query
--q can be used to override the default query that is run to calculate the busiest path. This can be useful if your dataset is large and you want to temporarily load in a query that looks a smaller set of your data in order to quickly try GoodHound out.  
+-q can be used to override the default query that is run to calculate the busiest path. This can be useful if your dataset is large and you want to temporarily load in a query that looks at a smaller set of your data in order to quickly try GoodHound out.  
 Care should be taken to ensure that the query provides output in the same way as the built-in query, so it doesn't stop any other part of GoodHound running.  
 The original query is :  
 ```
