@@ -69,5 +69,5 @@ TBD: Requires py2neo and pandas to be installed.
 - [ ] only the shortest path for each busiest path is displayed. If one pathway has many paths this will be hidden. Unsure if this is an issue or not.
 - [x] can the hop count be done as part of the original shortestpath query?
 - [ ] support encrypted neo4j connection.
-- [ ] sometimes a path shows up twice if one group is a member of another group. An if statement to see if $group ismember of $group then break might work.
+- [ ] sometimes a path shows up twice if one group is a member of another group. An if statement to see if $group ismember of $group then break might work and might even speed up the process
 
