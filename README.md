@@ -23,20 +23,9 @@ The neo4j database will need to already have the Sharphound collector output upl
 The output shows a total number of unique users that have a path to a HighValue target.  
 It then breaks this down to individual paths, ordered by the busiest path. 
 Each path is then displayed showing the starting group, the number of non-admin users within that path, the number of hops and also a Cypher query. This cypher query can be directly copied into the Custom query bar in Bloodhound for a visual representation of the attack path. 
-# GRAND TOTALS
-|   Total Non-Admins with a Path |   Percentage of Total Enabled Non-Admins |
-|-------------------------------:|-----------------------------------------:|
-|                            255 |                                     51.8 |
-## BUSIEST PATHS
-| Starting Group                           |   Number of Enabled Non-Admins with Path |   Percent of Total Enabled Non-Admins |   Number of Hops | Bloodhound Query                                                                                             |
-|:-----------------------------------------|-----------------------------------------:|--------------------------------------:|-----------------:|:-------------------------------------------------------------------------------------------------------------|
-| BE-BTHOMA110-DISTLIST1@WINDOMAIN.LOCAL   |                                       54 |                                  11   |                4 | match p=((g:Group {name:"BE-BTHOMA110-DISTLIST1@WINDOMAIN.LOCAL"})-[*3..4]->(n {highvalue:true})) return p   |
-| WI-290-DISTLIST1@WINDOMAIN.LOCAL         |                                       47 |                                   9.6 |                5 | match p=((g:Group {name:"WI-290-DISTLIST1@WINDOMAIN.LOCAL"})-[*4..5]->(n {highvalue:true})) return p         |
-| LI-197-DISTLIST1@WINDOMAIN.LOCAL         |                                       35 |                                   7.1 |                3 | match p=((g:Group {name:"LI-197-DISTLIST1@WINDOMAIN.LOCAL"})-[*2..3]->(n {highvalue:true})) return p         |
-| NE-GUNDMSE3D-DISTLIST1@WINDOMAIN.LOCAL   |                                       34 |                                   6.9 |                2 | match p=((g:Group {name:"NE-GUNDMSE3D-DISTLIST1@WINDOMAIN.LOCAL"})-[*1..2]->(n {highvalue:true})) return p   |
-| CU-RA7BI4MI7-ADMINGROUP1@WINDOMAIN.LOCAL |                                       32 |                                   6.5 |                4 | match p=((g:Group {name:"CU-RA7BI4MI7-ADMINGROUP1@WINDOMAIN.LOCAL"})-[*3..4]->(n {highvalue:true})) return p |
 
-![BloodHound Attack Path](images\bloodhound-raw-query.png)
+![Example Output](images\example-output.png)  
+![BloodHound Attack Path](images\bloodhound-raw-query.png)  
 
 
 ### Options
