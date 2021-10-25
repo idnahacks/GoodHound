@@ -108,14 +108,14 @@ pip install -r requirements.txt
 - [x] Query overide options
 - [x] Export to csv
 - [x] Documentation
-- [ ] Trial adding a score to hop type
-- [ ] Limit query time counting to verbose mode (use loggy?)
-- [ ] Query Performance (is threading or neo4j tuning an option?)
+- [x] can the hop count be done as part of the original shortestpath query?
 - [x] Add count of total distinct users that have any path
 - [x] add ability to setup schema
-- [ ] add ability to warm up database if possible.
 - [ ] only the shortest path for each busiest path is displayed. If one pathway has many paths this will be hidden. Unsure if this is an issue or not.
-- [x] can the hop count be done as part of the original shortestpath query?
-- [ ] support encrypted neo4j connection.
 - [ ] sometimes a path shows up twice if one group is a member of another group. An if statement to see if $group ismember of $group then break might work and might even speed up the process
-
+- [ ] Trial adding a score to hop type
+- [ ] Make sure all edges have a score assigned
+- [ ] Limit query time counting to verbose mode (use loggy?)
+- [ ] Query Performance (is threading or neo4j tuning an option?)
+- [ ] add ability to warm up database if possible.
+- [ ] support encrypted neo4j connection.
