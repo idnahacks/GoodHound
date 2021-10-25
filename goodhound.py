@@ -22,6 +22,7 @@ def arguments():
     parsegroupoutput.add_argument("-f", "--output-filename", default="goodhound.csv", help="File path and name to save the csv output.", type=str)
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
     parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
+    parsegroupqueryparams.add_argument("-sort", "--sort", default="risk", help="Option to sort results by number of users with the path, number of hops or risk score. Default: Risk Score", type=str, choices=["users", "hops", "risk"])
     parsegroupqueryparams.add_argument("-q", "--query", help="Optionally add a custom query to replace the default busiest paths query. This can be used to run a query that perhaps does not take as long as the full run. The format should maintain the 'match p=shortestpath((g:Group)-[]->(n)) return distinct(g.name) as groupname, min(length(p)) as hops' structure so that it doesn't derp up the rest of the script. e.g. 'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops'", type=str)
     parsegroupschema = argparser.add_argument_group('Schema')
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
@@ -126,7 +127,12 @@ def busiestpath(groupswithpath, graph, args):
                     result = [group, num_members, percentage, hops, score, riskscore]
                     paths.append(result)
                     break
-    top_paths = (sorted(paths, key=lambda i: -i[5])[0:args.results])
+    if args.sort == 'users':
+        top_paths = (sorted(paths, key=lambda i: -i[2])[0:args.results])
+    elif args.sort == 'hops':
+        top_paths = (sorted(paths, key=lambda i: i[3])[0:args.results])
+    else:
+        top_paths = (sorted(paths, key=lambda i: -i[5])[0:args.results])
     total_unique_users = len((pd.Series(users)).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage}]
