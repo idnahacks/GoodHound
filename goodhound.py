@@ -56,7 +56,7 @@ def score(graph)        :
     "MATCH (n)-[r:CanRDP|Contains|GpLink]->(m) SET r.pwncost = 0",
     "MATCH (n)-[r:AdminTo|ForceChangePassword|AllowedToDelegate|AllowedToAct|AddAllowedToAct|ReadLAPSPassword|ReadGMSAPassword|HasSidHistory]->(m) SET r.pwncost = 2",
     "MATCH (n)-[r:CanPSRemote|ExecuteDCOM|SQLAdmin ]->(m) SET r.pwncost = 1",
-    "MATCH (n)-[r:AllExtendedRights|AddMembers|GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:Group) SET r.pwncost = 1",
+    "MATCH (n)-[r:AllExtendedRights|AddMember|AddMembers|GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:Group) SET r.pwncost = 1",
     "MATCH (n)-[r:AllExtendedRights|GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:User) SET r.pwncost = 2",
     "MATCH (n)-[r:AllExtendedRights|GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:Computer) SET r.pwncost = 1",
     "MATCH (n)-[r:DCSync|GetChanges|GetChangesAll|AllExtendedRights|GenericAll|WriteDacl|WriteOwner|Owns]->(m:Domain) SET r.pwncost = 2",
@@ -76,7 +76,7 @@ def shortestpath(graph, starttime, args):
     if args.query:
         query_shortestpath=f"%s" %args.query
     else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) return distinct(g.name) as groupname, min(length(p)) as hops"""
+        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as score, length(p) as hops, g.name as groupname return groupname, hops, min(score) as score"""
     print("Running query")
     try:
         groupswithpath=graph.run(query_shortestpath)
@@ -91,7 +91,7 @@ def busiestpath(groupswithpath, graph, args):
     """Calculate the busiest paths by getting the number of users in the Groups that have a path to Highvalue, sorting the result, calculating some statistics and returns a list."""
     totalenablednonadminsquery="""match (u:User {highvalue:FALSE, enabled:TRUE}) return count(u)"""
     totalenablednonadminusers = int(graph.run(totalenablednonadminsquery).evaluate())
-    usercount=[]
+    paths=[]
     users=[]
     grouploopstart = datetime.now()
     print("Counting Users in Groups")
@@ -99,25 +99,34 @@ def busiestpath(groupswithpath, graph, args):
         group = g.get('groupname')
         hops = g.get('hops')
         score = g.get('score')
-        # fix the fact that it needs to query the same group for group members over and over
-        #if group in usercount:
-        #    num_members = usercount.index(group[1])
-        #    percentage = usercount.index(group[2])
-        #else:
-        print (f"Processing group: {group}................................................", end='\r')
-        # fix the need to run queries here too
-        query_num_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return count(distinct(u))""" % group
-        query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return u.name""" % group
-        num_members = int(graph.run(query_num_members).evaluate())
-        group_members = graph.run(query_group_members)
-        for m in group_members:
-            member = m.get('u.name')
-            users.append(member)
-        percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
-        riskscore = round(((percentage/score)/10),1)
-        result = [group, num_members, percentage, hops, score, riskscore]
-        usercount.append(result)
-    top_paths = (sorted(usercount, key=lambda i: -i[5])[0:args.results])
+        maxscore = hops*3+1
+        if score == None:
+            # While debugging this should highlight edges without a score assigned.
+            print(f"Null edge score found with {group} and {hops} hops.")
+            score = 0
+        if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
+            print (f"Processing group: {group}................................................", end="\r")
+            query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return u.name""" % group
+            group_members = graph.run(query_group_members).data()
+            num_members = len(group_members)
+            if len(group_members) != 0:
+                for m in group_members:
+                    member = m.get('u.name')
+                    users.append(member)
+            percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
+            riskscore = round((((maxscore-score)/maxscore)*percentage),1)
+            result = [group, num_members, percentage, hops, score, riskscore]
+            paths.append(result)
+        else:
+            for path in paths:
+                if path[0] == group:
+                    num_members = path[1]
+                    percentage = path[2]
+                    riskscore = round((((maxscore-score)/maxscore)*percentage),1)
+                    result = [group, num_members, percentage, hops, score, riskscore]
+                    paths.append(result)
+                    break
+    top_paths = (sorted(paths, key=lambda i: -i[5])[0:args.results])
     total_unique_users = len((pd.Series(users)).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage}]
@@ -137,6 +146,7 @@ def query(top_paths, starttime):
         score = int(t[4])
         riskscore = float(t[5])
         previous_hop = hops - 1
+        print(f"Generating query for {group}.", end="\r")
         query = """match p=((g:Group {name:"%s"})-[*%s..%s]->(n {highvalue:true})) return p""" %(group, previous_hop, hops)
         result = [group, num_users, percentage, hops, score, riskscore, query]
         results.append(result)
