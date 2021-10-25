@@ -45,6 +45,7 @@ Each path is then displayed showing the starting group, the number of non-admin 
 
 #### Number of results
 -r can be used to select the amount of results to show. By default the top 5 busiest paths are displayed.
+-sort can be used to sort descending by number of users with the path, ascending by hop count or descending by risk score.
 
 #### Schema
 -sch select a file containing cypher queries to set a custom schema to alter the default Bloodhound schema. This can be useful if you want to set the 'highvalue' label on AD objects that are not covered as standard, helping to provide internal context.
