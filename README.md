@@ -114,6 +114,7 @@ pip install -r requirements.txt
 - [x] only the shortest path for each busiest path is displayed. If one pathway has many paths this will be hidden. Unsure if this is an issue or not.
 - [ ] sometimes a path shows up twice if one group is a member of another group. An if statement to see if $group ismember of $group then break might work and might even speed up the process
 - [x] Trial adding a score to hop type
+- [ ] Add ability to choose whether to sort by users, hop count or risk score
 - [ ] Make sure all edges have a score assigned
 - [ ] Limit query time counting to verbose mode (use loggy?)
 - [ ] Query Performance (is threading or neo4j tuning an option?)
