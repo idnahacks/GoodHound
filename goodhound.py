@@ -80,7 +80,7 @@ def shortestpath(graph, starttime, args):
         query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as score, length(p) as hops, g.name as groupname return groupname, hops, min(score) as score"""
     print("Running query")
     try:
-        groupswithpath=graph.run(query_shortestpath)
+        groupswithpath=graph.run(query_shortestpath).data()
     except:
         print("There is a problem with the inputted query. If you have entered a custom query check the syntax.")
         sys.exit(1)
@@ -92,11 +92,14 @@ def busiestpath(groupswithpath, graph, args):
     """Calculate the busiest paths by getting the number of users in the Groups that have a path to Highvalue, sorting the result, calculating some statistics and returns a list."""
     totalenablednonadminsquery="""match (u:User {highvalue:FALSE, enabled:TRUE}) return count(u)"""
     totalenablednonadminusers = int(graph.run(totalenablednonadminsquery).evaluate())
+    totalgroups = len(groupswithpath)
     paths=[]
     users=[]
+    i=0
     grouploopstart = datetime.now()
     print("Counting Users in Groups")
     for g in groupswithpath:
+        i +=1
         group = g.get('groupname')
         hops = g.get('hops')
         score = g.get('score')
@@ -106,7 +109,7 @@ def busiestpath(groupswithpath, graph, args):
             print(f"Null edge score found with {group} and {hops} hops.")
             score = 0
         if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
-            print (f"Processing group: {group}................................................", end="\r")
+            print (f"Processing group {i} of {totalgroups}", end="\r")
             query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return u.name""" % group
             group_members = graph.run(query_group_members).data()
             num_members = len(group_members)
@@ -152,7 +155,6 @@ def query(top_paths, starttime):
         score = int(t[4])
         riskscore = float(t[5])
         previous_hop = hops - 1
-        print(f"Generating query for {group}.", end="\r")
         query = """match p=((g:Group {name:"%s"})-[*%s..%s]->(n {highvalue:true})) return p""" %(group, previous_hop, hops)
         result = [group, num_users, percentage, hops, score, riskscore, query]
         results.append(result)
