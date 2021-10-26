@@ -51,8 +51,8 @@ def schema(graph, args):
         print("Error setting custom schema.")
         sys.exit(1)
 
-def score(graph)        :
-    score=["MATCH (n)-[r:MemberOf]->(m:Group) SET r.pwncost = 0",
+def cost(graph):
+    cost=["MATCH (n)-[r:MemberOf]->(m:Group) SET r.pwncost = 0",
     "MATCH (n)-[r:HasSession]->(m) SET r.pwncost = 3",
     "MATCH (n)-[r:CanRDP|Contains|GpLink]->(m) SET r.pwncost = 0",
     "MATCH (n)-[r:AdminTo|ForceChangePassword|AllowedToDelegate|AllowedToAct|AddAllowedToAct|ReadLAPSPassword|ReadGMSAPassword|HasSidHistory]->(m) SET r.pwncost = 2",
@@ -63,13 +63,13 @@ def score(graph)        :
     "MATCH (n)-[r:DCSync|GetChanges|GetChangesAll|AllExtendedRights|GenericAll|WriteDacl|WriteOwner|Owns]->(m:Domain) SET r.pwncost = 2",
     "MATCH (n)-[r:GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:GPO) SET r.pwncost = 1",
     "MATCH (n)-[r:GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite ]->(m:OU) SET r.pwncost = 1"]
-    print("Setting score.")
+    print("Setting cost.")
     try:
-        for s in score:
-            graph.run(s)
+        for c in cost:
+            graph.run(c)
         return()
     except:
-        print("Error setting score!")
+        print("Error setting cost!")
         sys.exit(1)
 
 def shortestpath(graph, starttime, args):
@@ -77,7 +77,7 @@ def shortestpath(graph, starttime, args):
     if args.query:
         query_shortestpath=f"%s" %args.query
     else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as score, length(p) as hops, g.name as groupname return groupname, hops, min(score) as score"""
+        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, length(p) as hops, g.name as groupname return groupname, hops, min(cost) as cost"""
     print("Running query")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
@@ -102,12 +102,12 @@ def busiestpath(groupswithpath, graph, args):
         i +=1
         group = g.get('groupname')
         hops = g.get('hops')
-        score = g.get('score')
-        maxscore = hops*3+1
-        if score == None:
+        cost = g.get('cost')
+        maxcost = hops*3+1
+        if cost == None:
             # While debugging this should highlight edges without a score assigned.
-            print(f"Null edge score found with {group} and {hops} hops.")
-            score = 0
+            print(f"Null edge cost found with {group} and {hops} hops.")
+            cost = 0
         if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
             print (f"Processing group {i} of {totalgroups}", end="\r")
             query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return u.name""" % group
@@ -118,16 +118,16 @@ def busiestpath(groupswithpath, graph, args):
                     member = m.get('u.name')
                     users.append(member)
             percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
-            riskscore = round((((maxscore-score)/maxscore)*percentage),1)
-            result = [group, num_members, percentage, hops, score, riskscore]
+            riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
+            result = [group, num_members, percentage, hops, cost, riskscore]
             paths.append(result)
         else:
             for path in paths:
                 if path[0] == group:
                     num_members = path[1]
                     percentage = path[2]
-                    riskscore = round((((maxscore-score)/maxscore)*percentage),1)
-                    result = [group, num_members, percentage, hops, score, riskscore]
+                    riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
+                    result = [group, num_members, percentage, hops, cost, riskscore]
                     paths.append(result)
                     break
     if args.sort == 'users':
@@ -152,11 +152,11 @@ def query(top_paths, starttime):
         num_users = int(t[1])
         percentage = float(t[2])
         hops = int(t[3])
-        score = int(t[4])
+        cost = int(t[4])
         riskscore = float(t[5])
         previous_hop = hops - 1
         query = """match p=((g:Group {name:"%s"})-[*%s..%s]->(n {highvalue:true})) return p""" %(group, previous_hop, hops)
-        result = [group, num_users, percentage, hops, score, riskscore, query]
+        result = [group, num_users, percentage, hops, cost, riskscore, query]
         results.append(result)
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
@@ -166,7 +166,7 @@ def query(top_paths, starttime):
 def output(results, grandtotals, args):
     pd.set_option('display.max_colwidth', None)
     totaldf = pd.DataFrame(grandtotals)
-    resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Score", "Risk Score", "Bloodhound Query"])
+    resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Bloodhound Query"])
     if args.output_format == "stdout":
         print("GRAND TOTALS")
         print("============")
@@ -191,7 +191,7 @@ def main():
     starttime = datetime.now()
     if args.schema:
         schema(graph, args)
-    score(graph)
+    cost(graph)
     groupswithpath = shortestpath(graph, starttime, args)
     top_paths, grandtotals = busiestpath(groupswithpath, graph, args)
     results = query(top_paths, starttime)
