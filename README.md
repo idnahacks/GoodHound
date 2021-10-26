@@ -42,6 +42,7 @@ Each path is then displayed showing the starting group, the number of non-admin 
 - md or markdown to display a markdown formatted output  
 
 -f an optional filename for the csv output option
+-v enables verbose output to display query times
 
 #### Number of results
 -r can be used to select the amount of results to show. By default the top 5 busiest paths are displayed.  
