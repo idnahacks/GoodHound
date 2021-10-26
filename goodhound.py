@@ -3,6 +3,7 @@ from datetime import datetime
 import sys
 import argparse
 import pandas as pd
+import logging
 
 def banner():
     print("""   ______                ____  __                      __""")
@@ -20,6 +21,7 @@ def arguments():
     parsegroupoutput = argparser.add_argument_group('Output Formats')
     parsegroupoutput.add_argument("-o", "--output-format", default="stdout", help="Output formats supported: stdout, csv, md (markdown). Default: stdout.", type=str, choices=["stdout", "csv", "md", "markdown"])
     parsegroupoutput.add_argument("-f", "--output-filename", default="goodhound.csv", help="File path and name to save the csv output.", type=str)
+    parsegroupoutput.add_argument("-v", "--verbose", help="Enables verbose output.", action="store_true")
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
     parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
     parsegroupqueryparams.add_argument("-sort", "--sort", default="risk", help="Option to sort results by number of users with the path, number of hops or risk score. Default: Risk Score", type=str, choices=["users", "hops", "risk"])
@@ -30,25 +32,26 @@ def arguments():
     return args
 
 def db_connect(args):
+    logging.info('Connecting to database.')
     try:
         graph = Graph(args.server, user=args.username, password=args.password)
         return graph    
     except:
-        print("Database connection failure.")
+        logging.warning("Database connection failure.")
         sys.exit(1)
 
 def schema(graph, args):
     try:
         with open(args.schema,'r') as schema_query:
             line = schema_query.readline()
-            print("Writing schema.")
+            logging.info('Writing schema.')
             while line:
                 graph.run(line)
                 line = schema_query.readline()
-        print("Written schema!")        
+        logging.info("Written schema!")        
         return()
     except:
-        print("Error setting custom schema.")
+        logging.warning("Error setting custom schema.")
         sys.exit(1)
 
 def cost(graph):
@@ -69,7 +72,7 @@ def cost(graph):
             graph.run(c)
         return()
     except:
-        print("Error setting cost!")
+        logging.warning("Error setting cost!")
         sys.exit(1)
 
 def shortestpath(graph, starttime, args):
@@ -78,14 +81,14 @@ def shortestpath(graph, starttime, args):
         query_shortestpath=f"%s" %args.query
     else:
         query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, length(p) as hops, g.name as groupname return groupname, hops, min(cost) as cost"""
-    print("Running query")
+    print("Running query, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
     except:
-        print("There is a problem with the inputted query. If you have entered a custom query check the syntax.")
+        logging.warning("There is a problem with the inputted query. If you have entered a custom query check the syntax.")
         sys.exit(1)
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
-    print("Finished query in : {} Minutes".format(querytime))
+    logging.info("Finished query in : {} Minutes".format(querytime))
     return groupswithpath
 
 def busiestpath(groupswithpath, graph, args):
@@ -106,7 +109,7 @@ def busiestpath(groupswithpath, graph, args):
         maxcost = hops*3+1
         if cost == None:
             # While debugging this should highlight edges without a score assigned.
-            print(f"Null edge cost found with {group} and {hops} hops.")
+            logging.info(f"Null edge cost found with {group} and {hops} hops.")
             cost = 0
         if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
             print (f"Processing group {i} of {totalgroups}", end="\r")
@@ -122,6 +125,7 @@ def busiestpath(groupswithpath, graph, args):
             result = [group, num_members, percentage, hops, cost, riskscore]
             paths.append(result)
         else:
+            print (f"Processing group {i} of {totalgroups}", end="\r")
             for path in paths:
                 if path[0] == group:
                     num_members = path[1]
@@ -130,6 +134,7 @@ def busiestpath(groupswithpath, graph, args):
                     result = [group, num_members, percentage, hops, cost, riskscore]
                     paths.append(result)
                     break
+    print("\n")
     if args.sort == 'users':
         top_paths = (sorted(paths, key=lambda i: -i[2])[0:args.results])
     elif args.sort == 'hops':
@@ -139,9 +144,9 @@ def busiestpath(groupswithpath, graph, args):
     total_unique_users = len((pd.Series(users)).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage}]
-    #grouploopfinishtime = datetime.now()
-    #grouplooptime = round((grouploopfinishtime-grouploopstart).total_seconds() / 60)
-    #print("\nFinished counting users in: {} minutes.".format(grouplooptime))
+    grouploopfinishtime = datetime.now()
+    grouplooptime = round((grouploopfinishtime-grouploopstart).total_seconds() / 60)
+    logging.info("Finished counting users in: {} minutes.".format(grouplooptime))
     return top_paths, grandtotals
 
 def query(top_paths, starttime):
@@ -160,7 +165,7 @@ def query(top_paths, starttime):
         results.append(result)
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
-    print("\nTotal runtime: {} minutes.".format(totalruntime), end='\n\n')
+    logging.info("Total runtime: {} minutes.".format(totalruntime))
     return results
 
 def output(results, grandtotals, args):
@@ -168,7 +173,7 @@ def output(results, grandtotals, args):
     totaldf = pd.DataFrame(grandtotals)
     resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Bloodhound Query"])
     if args.output_format == "stdout":
-        print("GRAND TOTALS")
+        print("\n\nGRAND TOTALS")
         print("============")
         print(totaldf.to_string(index=False))
         print("BUSIEST PATHS")
@@ -186,6 +191,8 @@ def output(results, grandtotals, args):
 
 def main():
     args = arguments()
+    if args.verbose:
+        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
     banner()
     graph = db_connect(args)
     starttime = datetime.now()
