@@ -41,7 +41,7 @@ Each path is then displayed showing the starting group, the number of non-admin 
 - csv saves a comma separated values file for use with reporting or MI (completing the graphs, actions, charts trifecta in the tagline)
 - md or markdown to display a markdown formatted output  
 
--f an optional filename for the csv output option
+-f an optional filename for the csv output option  
 -v enables verbose output to display query times
 
 #### Number of results
