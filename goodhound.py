@@ -125,6 +125,7 @@ def busiestpath(groupswithpath, graph, args):
         hops = g.get('hops')
         cost = g.get('cost')
         fullpath = g.get('full_path')
+        endnode = g.get('nodeLabels')[-1]
         if cost == None:
             # While debugging this should highlight edges without a score assigned.
             logging.info(f"Null edge cost found with {group} and {hops} hops.")
@@ -140,16 +141,16 @@ def busiestpath(groupswithpath, graph, args):
                     users.append(member)
             percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
             riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
-            result = [group, num_members, percentage, hops, cost, riskscore, fullpath]
+            result = [group, num_members, percentage, hops, cost, riskscore, fullpath, endnode]
             paths.append(result)
         else:
-            print (f"Processing group {i} of {totalpaths}", end="\r")
+            print (f"Processing path {i} of {totalpaths}", end="\r")
             for path in paths:
                 if path[0] == group:
                     num_members = path[1]
                     percentage = path[2]
                     riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
-                    result = [group, num_members, percentage, hops, cost, riskscore, fullpath]
+                    result = [group, num_members, percentage, hops, cost, riskscore, fullpath, endnode]
                     paths.append(result)
                     break
     print("\n")
@@ -178,8 +179,9 @@ def query(top_paths, starttime):
         cost = int(t[4])
         riskscore = float(t[5])
         fullpath = str(t[6])
+        endnode = str(t[7])
         previous_hop = hops - 1
-        query = """match p=((g:Group {name:"%s"})-[*%s..%s]->(n {highvalue:true})) return p""" %(group, previous_hop, hops)
+        query = """match p=((g:Group {name:'%s'})-[*%s..%s]->(n {name:'%s'})) return p""" %(group, previous_hop, hops, endnode)
         result = [group, num_users, percentage, hops, cost, riskscore, fullpath, query]
         results.append(result)
     finish = datetime.now()
