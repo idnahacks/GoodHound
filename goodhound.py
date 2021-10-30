@@ -4,6 +4,7 @@ import sys
 import argparse
 import pandas as pd
 import logging
+from collections import Counter
 
 def banner():
     print("""   ______                ____  __                      __""")
@@ -166,8 +167,17 @@ def busiestpath(groupswithpath, graph, args):
     grouploopfinishtime = datetime.now()
     grouplooptime = round((grouploopfinishtime-grouploopstart).total_seconds() / 60)
     logging.info("Finished counting users in: {} minutes.".format(grouplooptime))
-    return top_paths, grandtotals
+    return top_paths, grandtotals, totalpaths
 
+def commonnode(groupswithpath):
+    nodes = []
+    for path in groupswithpath:
+        steps = path.get('nodeLabels')[1:-1]
+        for step in steps:
+            nodes.append(step)
+    common_node = Counter(nodes).most_common(1)
+    return common_node
+    
 def query(top_paths, starttime):
     """Generate a replayable query for each finding for Bloodhound visualisation."""
     results = []
@@ -189,24 +199,34 @@ def query(top_paths, starttime):
     logging.info("Total runtime: {} minutes.".format(totalruntime))
     return results
 
-def output(results, grandtotals, args):
+def output(results, grandtotals, common_node, totalpaths, args):
     pd.set_option('display.max_colwidth', None)
     totaldf = pd.DataFrame(grandtotals)
+    com_node = [e for element in common_node for e in element]
+    paths = {"Most Common Node":[com_node[0]], "No Paths Appears In":[com_node[1]], "Total Paths":[totalpaths]}
+    commondf = pd.DataFrame.from_dict(paths)
+    #commondf = pd.DataFrame(common_node, columns=["Most Common Node", "Num paths appears in"])
+    #commondf = commondf.append(pathsdf, ignore_index=True, sort=False)
     resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query"])
     if args.output_format == "stdout":
         print("\n\nGRAND TOTALS")
         print("============")
         print(totaldf.to_string(index=False))
-        print("BUSIEST PATHS")
+        print("\nCOMMON NODES")
+        print("------------\n")
+        print(commondf.to_string(index=False))
+        print("\nBUSIEST PATHS")
         print("-------------\n")
         print (resultsdf.to_string(index=False))
     elif args.output_format == ("md" or "markdown"):
         print("# GRAND TOTALS")
         print (totaldf.to_markdown(index=False))
+        print("## COMMON NODES")
+        print (commondf.to_markdown(index=False))
         print("## BUSIEST PATHS")
         print (resultsdf.to_markdown(index=False))
     else:
-        mergeddf = totaldf.append(resultsdf, ignore_index=True, sort=False)
+        mergeddf = totaldf.append([commondf, resultsdf], ignore_index=True, sort=False).fillna("")
         mergeddf.to_csv(args.output_filename, index=False)
 
 
@@ -221,9 +241,10 @@ def main():
         schema(graph, args)
     cost(graph)
     groupswithpath = shortestpath(graph, starttime, args)
-    top_paths, grandtotals = busiestpath(groupswithpath, graph, args)
+    common_node = commonnode(groupswithpath)
+    top_paths, grandtotals, totalpaths = busiestpath(groupswithpath, graph, args)
     results = query(top_paths, starttime)
-    output(results, grandtotals, args)
+    output(results, grandtotals, common_node, totalpaths, args)
 
 if __name__ == "__main__":
     main()
