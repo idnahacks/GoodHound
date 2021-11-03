@@ -226,7 +226,7 @@ def output(results, grandtotals, common_node, totalpaths, args):
         print("## BUSIEST PATHS")
         print (resultsdf.to_markdown(index=False))
     else:
-        mergeddf = totaldf.append([commondf, resultsdf], ignore_index=True, sort=False).fillna("")
+        mergeddf = totaldf.append([commondf, resultsdf]).fillna("")
         mergeddf.to_csv(args.output_filename, index=False)
 
 
