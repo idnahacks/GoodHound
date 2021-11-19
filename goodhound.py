@@ -248,3 +248,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Potential query relating to timestamping the data with last seen/first seen.
+# The most recent lastlogondate timestamp of the DCs, which should be reasonably close to when the data was captured. It's probably not the best way to do it, but it'll give something to do a POC of temporal tracking with.
+# WITH '(?i)ldap/.*' as regex_one WITH '(?i)gc/.*' as regex_two MATCH (n:Computer) WHERE ANY(item IN n.serviceprincipalnames WHERE item =~ regex_two OR item =~ regex_two ) return n.lastlogontimestamp as date order by date desc limit 1
+
+# the idea is to add paths into a sqlite database, giving opportunity to track these over time.
