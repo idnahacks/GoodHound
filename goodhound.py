@@ -155,12 +155,26 @@ def busiestpath(groupswithpath, graph, args):
                     paths.append(result)
                     break
     print("\n")
+    unique_groupswpath = []
+    sorted_p = sorted(paths, key=lambda i: (i[0], -i[5]))
+    for p in sorted_p:
+        group = p[0]
+        num_members = p[1]
+        percentage = p[2]
+        hops = p[3]
+        cost = p[4]
+        riskscore = p[5]
+        fullpath = p[6]
+        endnode = p[7]
+        if (len(unique_groupswpath)==0) or (any(group == ugp[0] for ugp in unique_groupswpath) != True):
+            unique = [group, num_members, percentage, hops, cost, riskscore, fullpath, endnode]
+            unique_groupswpath.append(unique)
     if args.sort == 'users':
-        top_paths = (sorted(paths, key=lambda i: -i[2])[0:args.results])
+        top_paths = (sorted(unique_groupswpath, key=lambda i: -i[2])[0:args.results])
     elif args.sort == 'hops':
-        top_paths = (sorted(paths, key=lambda i: i[3])[0:args.results])
+        top_paths = (sorted(unique_groupswpath, key=lambda i: i[3])[0:args.results])
     else:
-        top_paths = (sorted(paths, key=lambda i: (-i[5], i[4], i[3]))[0:args.results])
+        top_paths = (sorted(unique_groupswpath, key=lambda i: (-i[5], i[4], i[3]))[0:args.results])
     total_unique_users = len((pd.Series(users)).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage}]
