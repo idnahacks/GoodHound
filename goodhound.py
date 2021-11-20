@@ -4,6 +4,7 @@ import sys
 import argparse
 import pandas as pd
 import logging
+from collections import Counter
 
 def banner():
     print("""   ______                ____  __                      __""")
@@ -80,7 +81,21 @@ def shortestpath(graph, starttime, args):
     if args.query:
         query_shortestpath=f"%s" %args.query
     else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, length(p) as hops, g.name as groupname return groupname, hops, min(cost) as cost"""
+        #query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, length(p) as hops, g.name as groupname return groupname, hops, min(cost) as cost"""
+        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) 
+with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, 
+length(p) as hops, 
+g.name as groupname, 
+[node in nodes(p) | coalesce(node.name, "")] as nodeLabels,
+[rel in relationships(p) | type(rel)] as relationshipLabels
+with
+reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path,
+nodeLabels[hops] as final_node,
+hops as hops, 
+groupname as groupname, 
+cost as cost,
+nodeLabels as nodeLabels
+return groupname, hops, min(cost) as cost, nodeLabels, path + final_node as full_path"""
     print("Running query, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
@@ -95,10 +110,14 @@ def busiestpath(groupswithpath, graph, args):
     """Calculate the busiest paths by getting the number of users in the Groups that have a path to Highvalue, sorting the result, calculating some statistics and returns a list."""
     totalenablednonadminsquery="""match (u:User {highvalue:FALSE, enabled:TRUE}) return count(u)"""
     totalenablednonadminusers = int(graph.run(totalenablednonadminsquery).evaluate())
-    totalgroups = len(groupswithpath)
+    totalpaths = len(groupswithpath)
     paths=[]
     users=[]
     i=0
+    maxhops=[]
+    for sublist in groupswithpath:
+        maxhops.append(sublist.get('hops'))
+    maxcost = (max(maxhops))*3+1
     grouploopstart = datetime.now()
     print("Counting Users in Groups")
     for g in groupswithpath:
@@ -106,49 +125,73 @@ def busiestpath(groupswithpath, graph, args):
         group = g.get('groupname')
         hops = g.get('hops')
         cost = g.get('cost')
-        maxcost = hops*3+1
+        fullpath = g.get('full_path')
+        endnode = g.get('nodeLabels')[-1]
         if cost == None:
             # While debugging this should highlight edges without a score assigned.
             logging.info(f"Null edge cost found with {group} and {hops} hops.")
             cost = 0
         if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
-            print (f"Processing group {i} of {totalgroups}", end="\r")
-            query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return u.name""" % group
+            print (f"Processing path {i} of {totalpaths}", end="\r")
+            query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return distinct(u.name) as members""" % group
             group_members = graph.run(query_group_members).data()
             num_members = len(group_members)
             if len(group_members) != 0:
                 for m in group_members:
-                    member = m.get('u.name')
+                    member = m.get('members')
                     users.append(member)
             percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
             riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
-            result = [group, num_members, percentage, hops, cost, riskscore]
+            result = [group, num_members, percentage, hops, cost, riskscore, fullpath, endnode]
             paths.append(result)
         else:
-            print (f"Processing group {i} of {totalgroups}", end="\r")
+            print (f"Processing path {i} of {totalpaths}", end="\r")
             for path in paths:
                 if path[0] == group:
                     num_members = path[1]
                     percentage = path[2]
                     riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
-                    result = [group, num_members, percentage, hops, cost, riskscore]
+                    result = [group, num_members, percentage, hops, cost, riskscore, fullpath, endnode]
                     paths.append(result)
                     break
     print("\n")
+    unique_groupswpath = []
+    sorted_p = sorted(paths, key=lambda i: (i[0], -i[5]))
+    for p in sorted_p:
+        group = p[0]
+        num_members = p[1]
+        percentage = p[2]
+        hops = p[3]
+        cost = p[4]
+        riskscore = p[5]
+        fullpath = p[6]
+        endnode = p[7]
+        if (len(unique_groupswpath)==0) or (any(group == ugp[0] for ugp in unique_groupswpath) != True):
+            unique = [group, num_members, percentage, hops, cost, riskscore, fullpath, endnode]
+            unique_groupswpath.append(unique)
     if args.sort == 'users':
-        top_paths = (sorted(paths, key=lambda i: -i[2])[0:args.results])
+        top_paths = (sorted(unique_groupswpath, key=lambda i: -i[2])[0:args.results])
     elif args.sort == 'hops':
-        top_paths = (sorted(paths, key=lambda i: i[3])[0:args.results])
+        top_paths = (sorted(unique_groupswpath, key=lambda i: i[3])[0:args.results])
     else:
-        top_paths = (sorted(paths, key=lambda i: -i[5])[0:args.results])
+        top_paths = (sorted(unique_groupswpath, key=lambda i: (-i[5], i[4], i[3]))[0:args.results])
     total_unique_users = len((pd.Series(users)).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage}]
     grouploopfinishtime = datetime.now()
     grouplooptime = round((grouploopfinishtime-grouploopstart).total_seconds() / 60)
     logging.info("Finished counting users in: {} minutes.".format(grouplooptime))
-    return top_paths, grandtotals
+    return top_paths, grandtotals, totalpaths
 
+def commonnode(groupswithpath):
+    nodes = []
+    for path in groupswithpath:
+        steps = path.get('nodeLabels')[1:-1]
+        for step in steps:
+            nodes.append(step)
+    common_node = Counter(nodes).most_common(1)
+    return common_node
+    
 def query(top_paths, starttime):
     """Generate a replayable query for each finding for Bloodhound visualisation."""
     results = []
@@ -159,33 +202,45 @@ def query(top_paths, starttime):
         hops = int(t[3])
         cost = int(t[4])
         riskscore = float(t[5])
+        fullpath = str(t[6])
+        endnode = str(t[7])
         previous_hop = hops - 1
-        query = """match p=((g:Group {name:"%s"})-[*%s..%s]->(n {highvalue:true})) return p""" %(group, previous_hop, hops)
-        result = [group, num_users, percentage, hops, cost, riskscore, query]
+        query = """match p=((g:Group {name:'%s'})-[*%s..%s]->(n {name:'%s'})) return p""" %(group, previous_hop, hops, endnode)
+        result = [group, num_users, percentage, hops, cost, riskscore, fullpath, query]
         results.append(result)
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
     logging.info("Total runtime: {} minutes.".format(totalruntime))
     return results
 
-def output(results, grandtotals, args):
+def output(results, grandtotals, common_node, totalpaths, args):
     pd.set_option('display.max_colwidth', None)
     totaldf = pd.DataFrame(grandtotals)
-    resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Bloodhound Query"])
+    com_node = [e for element in common_node for e in element]
+    paths = {"Most Common Node":[com_node[0]], "No Paths Appears In":[com_node[1]], "Total Paths":[totalpaths]}
+    commondf = pd.DataFrame.from_dict(paths)
+    #commondf = pd.DataFrame(common_node, columns=["Most Common Node", "Num paths appears in"])
+    #commondf = commondf.append(pathsdf, ignore_index=True, sort=False)
+    resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query"])
     if args.output_format == "stdout":
         print("\n\nGRAND TOTALS")
         print("============")
         print(totaldf.to_string(index=False))
-        print("BUSIEST PATHS")
+        print("\nCOMMON NODES")
+        print("------------\n")
+        print(commondf.to_string(index=False))
+        print("\nBUSIEST PATHS")
         print("-------------\n")
         print (resultsdf.to_string(index=False))
     elif args.output_format == ("md" or "markdown"):
         print("# GRAND TOTALS")
         print (totaldf.to_markdown(index=False))
+        print("## COMMON NODES")
+        print (commondf.to_markdown(index=False))
         print("## BUSIEST PATHS")
         print (resultsdf.to_markdown(index=False))
     else:
-        mergeddf = totaldf.append(resultsdf, ignore_index=True, sort=False)
+        mergeddf = totaldf.append([commondf, resultsdf]).fillna("")
         mergeddf.to_csv(args.output_filename, index=False)
 
 
@@ -200,9 +255,16 @@ def main():
         schema(graph, args)
     cost(graph)
     groupswithpath = shortestpath(graph, starttime, args)
-    top_paths, grandtotals = busiestpath(groupswithpath, graph, args)
+    common_node = commonnode(groupswithpath)
+    top_paths, grandtotals, totalpaths = busiestpath(groupswithpath, graph, args)
     results = query(top_paths, starttime)
-    output(results, grandtotals, args)
+    output(results, grandtotals, common_node, totalpaths, args)
 
 if __name__ == "__main__":
     main()
+
+# Potential query relating to timestamping the data with last seen/first seen.
+# The most recent lastlogondate timestamp of the DCs, which should be reasonably close to when the data was captured. It's probably not the best way to do it, but it'll give something to do a POC of temporal tracking with.
+# WITH '(?i)ldap/.*' as regex_one WITH '(?i)gc/.*' as regex_two MATCH (n:Computer) WHERE ANY(item IN n.serviceprincipalnames WHERE item =~ regex_two OR item =~ regex_two ) return n.lastlogontimestamp as date order by date desc limit 1
+
+# the idea is to add paths into a sqlite database, giving opportunity to track these over time.
