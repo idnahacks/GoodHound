@@ -219,23 +219,21 @@ def bh_query(paths):
 
     return allresults
 
-def output(results, grandtotals, common_node, totalpaths, args, starttime):
+def output(results, grandtotals, common_node, totalpaths, args, starttime, new_path, seen_before):
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
     logging.info("Total runtime: {} minutes.".format(totalruntime))
     pd.set_option('display.max_colwidth', None)
     totaldf = pd.DataFrame(grandtotals)
     com_node = [e for element in common_node for e in element]
-    paths = {"Most Common Node":[com_node[0]], "No Paths Appears In":[com_node[1]], "Total Paths":[totalpaths]}
+    paths = {"Most Common Node":[com_node[0]], "No Paths Appears In":[com_node[1]], "Total Paths":totalpaths, "% of Paths Seen Before": (seen_before/totalpaths*100), "New paths": new_path}
     commondf = pd.DataFrame.from_dict(paths)
-    #commondf = pd.DataFrame(common_node, columns=["Most Common Node", "Num paths appears in"])
-    #commondf = commondf.append(pathsdf, ignore_index=True, sort=False)
     resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
     if args.output_format == "stdout":
         print("\n\nGRAND TOTALS")
         print("============")
         print(totaldf.to_string(index=False))
-        print("\nCOMMON NODES")
+        print("\nPATH SUMMARY")
         print("------------\n")
         print(commondf.to_string(index=False))
         print("\nBUSIEST PATHS")
@@ -244,12 +242,13 @@ def output(results, grandtotals, common_node, totalpaths, args, starttime):
     elif args.output_format == ("md" or "markdown"):
         print("# GRAND TOTALS")
         print (totaldf.to_markdown(index=False))
-        print("## COMMON NODES")
+        print("## PATH SUMMARY")
         print (commondf.to_markdown(index=False))
         print("## BUSIEST PATHS")
         print (resultsdf.to_markdown(index=False))
     else:
         mergeddf = totaldf.append([commondf, resultsdf]).fillna("")
+        # need a check to see if hte path exists and if not create
         mergeddf.to_csv(args.output_filename, index=False)
 
 def db(allresults, graph):
@@ -278,21 +277,37 @@ def db(allresults, graph):
         c.execute(table_sql)
         scandate_query="""WITH '(?i)ldap/.*' as regex_one WITH '(?i)gc/.*' as regex_two MATCH (n:Computer) WHERE ANY(item IN n.serviceprincipalnames WHERE item =~ regex_two OR item =~ regex_two ) return n.lastlogontimestamp as date order by date desc limit 1"""
         scandate = int(graph.run(scandate_query).evaluate())
-        
+        seen_before=0
+        new_path=0
         for r in allresults:
-            values = (r[8],r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],scandate,scandate,)
+            insertvalues = (r[8],r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],scandate,scandate,)
             insertpath_sql = 'INSERT INTO paths VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+            updatevalues = {"last_seen":scandate, "uid":r[8]}
+            updatepath_sql = 'UPDATE paths SET last_seen=:last_seen WHERE uid=:uid'
             c.execute("SELECT count(*) FROM paths WHERE uid = ?", (r[8],))
             data = c.fetchone()[0]
             if data==0:
-                #c.execute('INSERT INTO paths VALUES (?,?,?,?,?,?,?,?,?,?,?)', (r[8],r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],scandate,scandate))
-                c.execute(insertpath_sql, values)
+                c.execute(insertpath_sql, insertvalues)
+                new_path += 1
+            else:
+                # Catch to stop accidentally overwriting the database with older data
+                c.execute("SELECT last_seen from paths WHERE uid = ?", (r[8],))
+                pathlastseen = int(c.fetchone()[0])
+                if pathlastseen < scandate:
+                    c.execute(updatepath_sql, updatevalues)
+                # update first_seen if an older dataset is loaded in
+                c.execute("SELECT first_seen from paths WHERE uid = ?", (r[8],))
+                pathfirstseen = int(c.fetchone()[0])
+                if pathfirstseen > scandate:
+                    c.execute("UPDATE paths SET first_seen=:first_seen WHERE uid=:uid", {"first_seen":scandate, "uid":r[8]})
+                seen_before += 1
         conn.commit()
     except Error as e:
         print(e)
     finally:
         if conn:
             conn.close()
+    return new_path, seen_before
 
 
 def main():
@@ -310,8 +325,8 @@ def main():
     common_node = commonnode(groupswithpath)
     top_paths, grandtotals, totalpaths, allresults = busiestpath(groupswithpath, graph, args)
     #results = query(top_paths)
-    db(allresults, graph)
-    output(top_paths, grandtotals, common_node, totalpaths, args, starttime)
+    new_path, seen_before = db(allresults, graph)
+    output(top_paths, grandtotals, common_node, totalpaths, args, starttime, new_path, seen_before)
 
 if __name__ == "__main__":
     main()
