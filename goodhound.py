@@ -33,6 +33,9 @@ def arguments():
     parsegroupqueryparams.add_argument("-q", "--query", help="Optionally add a custom query to replace the default busiest paths query. This can be used to run a query that perhaps does not take as long as the full run. The format should maintain the 'match p=shortestpath((g:Group)-[]->(n)) return distinct(g.name) as groupname, min(length(p)) as hops' structure so that it doesn't derp up the rest of the script. e.g. 'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops'", type=str)
     parsegroupschema = argparser.add_argument_group('Schema')
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
+    parsegroupsql = argparser.add_argument_group('SQLite Database')
+    parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
+    parsegroupsql.add_argument("-sqlpath", "--sql-path", default="db/goodhound.db", help="Sets the location of the SQLite Database", type=str)
     args = argparser.parse_args()
     return args
 
@@ -278,7 +281,7 @@ def output(results, grandtotals, totalpaths, args, starttime, new_path, seen_bef
         resultsdf.to_csv(busiestpathsname, index=False)
         weakest_linkdf.to_csv(weakestlinkname, index=False)
 
-def db(allresults, graph):
+def db(allresults, graph, args):
     #create or connect to existing db
     # add a parameter for db location
     table_sql = """CREATE TABLE IF NOT EXISTS paths (
@@ -294,12 +297,12 @@ def db(allresults, graph):
     first_seen INTEGER NOT NULL,
 	last_seen INTEGER NOT NULL
 );"""
-
-    if not os.path.exists(os.path.join(os.getcwd(), 'db')):
-        os.makedirs('db')
+    if args.sql_path == "db\goodhound.db":
+        if not os.path.exists(os.path.join(os.getcwd(), 'db')):
+            os.makedirs('db')
     conn = None
     try:
-        conn = sqlite3.connect('db\goodhound.db')
+        conn = sqlite3.connect(args.sql_path)
         c = conn.cursor()
         c.execute(table_sql)
         scandate_query="""WITH '(?i)ldap/.*' as regex_one WITH '(?i)gc/.*' as regex_two MATCH (n:Computer) WHERE ANY(item IN n.serviceprincipalnames WHERE item =~ regex_two OR item =~ regex_two ) return n.lastlogontimestamp as date order by date desc limit 1"""
@@ -343,7 +346,6 @@ def main():
     if args.verbose:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
     banner()
-    
     graph = db_connect(args)
     starttime = datetime.now()
     if args.schema:
@@ -352,8 +354,16 @@ def main():
     groupswithpath = shortestpath(graph, starttime, args)
     top_paths, grandtotals, totalpaths, allresults = busiestpath(groupswithpath, graph, args)
     weakest_links = commonlinks(groupswithpath, totalpaths)
-    new_path, seen_before, scandatenice = db(allresults, graph)
-    output(top_paths, grandtotals, totalpaths, args, starttime, new_path, seen_before, weakest_links, scandatenice)
+    if not args.db_skip:
+        new_path, seen_before, scandatenice = db(allresults, graph, args)
+        output(top_paths, grandtotals, totalpaths, args, starttime, new_path, seen_before, weakest_links, scandatenice)
+    else:
+        new_path = 0
+        seen_before = 0
+        scandate_query="""WITH '(?i)ldap/.*' as regex_one WITH '(?i)gc/.*' as regex_two MATCH (n:Computer) WHERE ANY(item IN n.serviceprincipalnames WHERE item =~ regex_two OR item =~ regex_two ) return n.lastlogontimestamp as date order by date desc limit 1"""
+        scandate = int(graph.run(scandate_query).evaluate())
+        scandatenice = (datetime.fromtimestamp(scandate)).strftime("%Y-%m-%d")
+        output(top_paths, grandtotals, totalpaths, args, starttime, new_path, seen_before, weakest_links, scandatenice)
 
 if __name__ == "__main__":
     main()

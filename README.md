@@ -16,13 +16,13 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 
 ### Default behaviour
 
-All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (http://localhost:7474) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the top 5 busiest paths to the screen.
+All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (http://localhost:7474) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the ouput to the screen.
 
 The neo4j database will need to already have the Sharphound collector output uploaded using the Upload button in the Bloodhound GUI. An example Sharphound output collected using [Bad Blood](https://github.com/davidprowe/BadBlood) on a [Detection Labs](https://detectionlab.network/) can be found in this repo at [/Sample%20SharpHound%20Output](/Sample%20SharpHound%20Output).
 
 The output shows a total number of unique users that have a path to a HighValue target.  
-It then breaks this down to individual paths, ordered by the busiest path. 
-Each path is then displayed showing the starting group, the number of non-admin users within that path, the number of hops and also a Cypher query. This cypher query can be directly copied into the Custom query bar in Bloodhound for a visual representation of the attack path. 
+It then breaks this down to individual paths, ordered by the risk score (more on this later).
+Each path is then displayed showing the starting group, the number of non-admin users within that path, the number of hops, the risk score, a text version of the path and also a Cypher query. This cypher query can be directly copied into the Raw Query bar in Bloodhound for a visual representation of the attack path. 
 
 ![Example Output](images/example-output.png)  
 ![BloodHound Attack Path](images/bloodhound-raw-query.png)  
@@ -64,12 +64,31 @@ The schema can contain multiple queries, each on a separate line.
 Care should be taken to ensure that the query provides output in the same way as the built-in query, so it doesn't stop any other part of GoodHound running.  
 The original query is :  
 ```
-'match p=shortestpath((g:Group)-[]->(n)) return distinct(g.name) as groupname, min(length(p)) as hops'
+'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) 
+with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, 
+length(p) as hops, 
+g.name as groupname, 
+[node in nodes(p) | coalesce(node.name, "")] as nodeLabels,
+[rel in relationships(p) | type(rel)] as relationshipLabels
+with
+reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path,
+nodeLabels[hops] as final_node,
+hops as hops, 
+groupname as groupname, 
+cost as cost,
+nodeLabels as nodeLabels,
+relationshipLabels as relLabels
+return groupname, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path'
 ```
 and so an example to retrieve a subset might be:  
 ```
-'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops'
+'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, length(p) as hops, g.name as groupname, [node in nodes(p) | coalesce(node.name, '')] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels with reduce(path='', x in range(0,hops-1) | path + nodeLabels[x] + ' - ' + relationshipLabels[x] + ' -> ') as path, nodeLabels[hops] as final_node, hops as hops, groupname as groupname, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels return groupname, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path'
 ```
+
+#### SQLite Database
+By default Goodhound stores all attack paths in a SQLite database stored at db/goodhound.db. This gives the opportunity to query attack paths over time.  
+--db-skip will skip logging anything to a local database  
+--sql-path can be used to point Goodhound to a SQLite db file that is not stored in the default location.
 
 ### Performance
 
@@ -84,19 +103,29 @@ Larger datasets can take time to process. Some performance improvements can be s
 ### Downloading GoodHound
 Either download using git or by downloading the zip file and extract to your chosen location.
 ```
-git clone https://github.com/thegoatreich/GoodHound.git
+git clone https://github.com/idnahacks/GoodHound.git
 cd goodhound
 ```
 __OR__
 ```
-https://github.com/thegoatreich/GoodHound/archive/refs/heads/main.zip
+https://github.com/idnahacks/GoodHound/archive/refs/heads/main.zip
 ```
 
+### Installing
 - Install required Python modules.  
 - Goodhound will install py2neo and pandas libraries, if you do not wish to change any local modules you already have installed it is recommended to use pipenv.  
 ```
 pip install -r requirements.txt
 ```
+
+## SQLite Database
+By default Goodhound will insert all of attack paths that it finds into a local SQLite database located in a db directory inside the current working directory.  
+This database can be then queried separately using the SQLite tools and queries. More details on that can be found [here](sqlqueries.md).
+
+## Risk Score
+
+
+
 ## Acknowledgments
 - The [py2neo](https://py2neo.org/2021.1/) project which makes this possible.
 - The [PlumHound](https://github.com/PlumHound/PlumHound) project which gave me the idea of creating something similar which suited my needs.
