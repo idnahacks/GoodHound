@@ -133,3 +133,4 @@ Pipfile.lock
 Pipfile
 requirements2.txt
 pwnscore.txt
+db/goodhound.db
