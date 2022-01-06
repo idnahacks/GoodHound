@@ -121,10 +121,12 @@ def busiestpath(groupswithpath, graph, args):
     paths=[]
     users=[]
     i=0
+    # Get the maximum amount of hops in the dataset to be used as part of the risk score calculation
     maxhops=[]
     for sublist in groupswithpath:
         maxhops.append(sublist.get('hops'))
     maxcost = (max(maxhops))*3+1
+
     grouploopstart = datetime.now()
     print("Counting Users in Groups")
     for g in groupswithpath:
@@ -139,6 +141,7 @@ def busiestpath(groupswithpath, graph, args):
             # While debugging this should highlight edges without a score assigned.
             logging.info(f"Null edge cost found with {group} and {hops} hops.")
             cost = 0
+        # Establishes if the group has already had the number of group members counted and skips it if so
         if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
             print (f"Processing path {i} of {totalpaths}", end="\r")
             query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return distinct(u.name) as members""" % group
@@ -163,7 +166,9 @@ def busiestpath(groupswithpath, graph, args):
                     paths.append(result)
                     break
     print("\n")
+    # Calls the bh_query function to add the bloodhound path to the result
     allresults = bh_query(paths)
+    # Removes duplicate starting groups from the results
     unique_groupswpath = []
     sorted_p = sorted(allresults, key=lambda i: (i[0], -i[5]))
     for p in sorted_p:
@@ -185,6 +190,7 @@ def busiestpath(groupswithpath, graph, args):
         top_paths = (sorted(unique_groupswpath, key=lambda i: i[3])[0:args.results])
     else:
         top_paths = (sorted(unique_groupswpath, key=lambda i: (-i[5], i[4], i[3]))[0:args.results])
+    # Processes the output into a dataframe
     total_unique_users = len((pd.Series(users)).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage, "Total Paths":totalpaths}]
@@ -193,26 +199,30 @@ def busiestpath(groupswithpath, graph, args):
     logging.info("Finished counting users in: {} minutes.".format(grouplooptime))
     return top_paths, grandtotals, totalpaths, allresults
 
-def commonnode(groupswithpath):
-    nodes = []
-    for path in groupswithpath:
-        steps = path.get('nodeLabels')[1:-1]
-        for step in steps:
-            nodes.append(step)
-    common_node = Counter(nodes).most_common(1)
-    return common_node
+#def commonnode(groupswithpath):
+#    nodes = []
+#    for path in groupswithpath:
+#        steps = path.get('nodeLabels')[1:-1]
+#        for step in steps:
+#            nodes.append(step)
+#    common_node = Counter(nodes).most_common(1)
+#    return common_node
 
 def commonlinks(groupswithpath, totalpaths):
+    """Attempts to determine the most common weak links across all attack paths"""
     links = []
     for path in groupswithpath:
         nodes = path.get('nodeLabels')
         rels = path.get('relLabels')
+        # assembles the nodes and rels into a chain
         chain = sum(zip(nodes, rels+[0]), ())[:-1]
+        # Divides the chains into Node-Rel-Node-Rel-Node groups as attack paths are usually "This can do that to the other. The other can then do this."
         for c in chain[:-4:2]:
             endlink = int(chain.index(c))+5
             link = []
             for ch in chain[chain.index(c):endlink]:
                 link.append(ch)
+            # Makes it into a neat string
             link = '->'.join(link)
             links.append(link)
     common_link = list(Counter(links).most_common(5))
@@ -282,8 +292,7 @@ def output(results, grandtotals, totalpaths, args, starttime, new_path, seen_bef
         weakest_linkdf.to_csv(weakestlinkname, index=False)
 
 def db(allresults, graph, args):
-    #create or connect to existing db
-    # add a parameter for db location
+    """Inserts all of the attack paths found into a SQLite database"""
     table_sql = """CREATE TABLE IF NOT EXISTS paths (
 	uid TEXT PRIMARY KEY,
 	groupname TEXT NOT NULL,
@@ -305,6 +314,7 @@ def db(allresults, graph, args):
         conn = sqlite3.connect(args.sql_path)
         c = conn.cursor()
         c.execute(table_sql)
+        # Find the date that the Sharphound collection was run based on the most recent lastlogondate timestamp of the Domain Controllers
         scandate_query="""WITH '(?i)ldap/.*' as regex_one WITH '(?i)gc/.*' as regex_two MATCH (n:Computer) WHERE ANY(item IN n.serviceprincipalnames WHERE item =~ regex_two OR item =~ regex_two ) return n.lastlogontimestamp as date order by date desc limit 1"""
         scandate = int(graph.run(scandate_query).evaluate())
         scandatenice = (datetime.fromtimestamp(scandate)).strftime("%Y-%m-%d")
@@ -313,8 +323,10 @@ def db(allresults, graph, args):
         for r in allresults:
             insertvalues = (r[8],r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],scandate,scandate,)
             insertpath_sql = 'INSERT INTO paths VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+            # Determines if the path has been previously logged in the database using the UID and updates the last_seen field
             updatevalues = {"last_seen":scandate, "uid":r[8]}
             updatepath_sql = 'UPDATE paths SET last_seen=:last_seen WHERE uid=:uid'
+            # Determines if the path has not been seen before based on the UID and inserts it into the database
             c.execute("SELECT count(*) FROM paths WHERE uid = ?", (r[8],))
             data = c.fetchone()[0]
             if data==0:
