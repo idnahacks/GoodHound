@@ -123,11 +123,64 @@ By default Goodhound will insert all of attack paths that it finds into a local 
 This database can be then queried separately using the SQLite tools and queries. More details on that can be found [here](sqlqueries.md).
 
 ## Risk Score
+The Risk Score is a mechanism to help prioritise remediation. It is calculated based on the Exploit Cost and the number of non-admin users exposed to that attack path. The more users that are exposed, and the lower the exploit cost, the higher the risk score.  
+**It is not intended to be a risk assessment in and of itself, and the intention is not to assign severities such as Critical, High, Medium etc to certain scores.**
 
+The score is calculated using the following formula:  
+```
+Risk Score = (MaxExploitCostPossible - ExploitCost) / MaxExploitCostPossible * %ofEnabledNon-AdminUserswiththepath
+```
+
+MaxExploitCostPossible is 3 * the maximum number of hops seen across all attack paths. 3 is chosen because it is the highest score any single hop in an attack path can have.
+
+### Exploit Cost
+Exploit Cost is an estimation of how noisy or complex a particular attack path might be.  
+For example, if an attacker has compromised userA and userA is a member of groupB then that step in the attack path doesn't require any further exploitation or real opsec considerations.  
+ Conversely if an attacker has compromised a user's workstation which also has an admin user session on it, to exploit this the attacker would (possibly) need to elevate permissions on the workstation and run something like Mimikatz to extract credentials from memory. This would require OPSEC considerations around monitoring of LSASS processes and also potentially require endpoint protection bypasses. All of which make the exploitation that little bit more difficult.
+
+**These scores have been assigned based upon my personal best judgement. They are not set in stone and discussions around the scoring are welcome and will only help to improve this.**
+
+The scores assigned to each exploit are:
+| Relationship        | Target Node Type    | OPSEC Considerations | Possible Protections to Bypass | Possible Privesc Required | Cost |
+|---------------------|---------------------|----------------------|--------------------------------|---------------------------|------|
+| Memberof            | Group               | No                   | No                             | No                        | 0    |
+| HasSession          | Any                 | Yes                  | Yes                            | Yes                       | 3    |
+| CanRDP              | Any                 | No                   | No                             | No                        | 0    |
+| Contains            | Any                 | No                   | No                             | No                        | 0    |
+| GPLink              | Any                 | No                   | No                             | No                        | 0    |
+| AdminTo             | Any                 | Yes                  | No                             | No                        | 1    |
+| ForceChangePassword | Any                 | Yes                  | No                             | No                        | 1    |
+| AllowedToDelegate   | Any                 | Yes                  | No                             | No                        | 1    |
+| AllowedToAct        | Any                 | Yes                  | No                             | No                        | 1    |
+| AddAllowedToAct     | Any                 | Yes                  | No                             | No                        | 1    |
+| ReadLapsPassword    | Any                 | Yes                  | No                             | No                        | 1    |
+| ReadGMSAPassword    | Any                 | Yes                  | No                             | No                        | 1    |
+| HasSidHistory       | Any                 | Yes                  | No                             | No                        | 1    |
+| CanPSRemote         | Any                 | Yes                  | No                             | No                        | 1    |
+| ExecuteDcom         | Any                 | Yes                  | No                             | No                        | 1    |
+| SqlAdmin            | Any                 | Yes                  | No                             | No                        | 1    |
+| AllExtendedRights   | Group/User/Computer | Yes                  | No                             | No                        | 1    |
+| AddMember           | Group               | Yes                  | No                             | No                        | 1    |
+| GenericAll          | Group/User/Computer | Yes                  | No                             | No                        | 1    |
+| WriteDACL           | Group/User/Computer | Yes                  | No                             | No                        | 1    |
+| WriteOwner          | Group/User/Computer | Yes                  | No                             | No                        | 1    |
+| Owns                | Group/User/Computer | Yes                  | No                             | No                        | 1    |
+| GenericWrite        | Group/User/Computer | Yes                  | No                             | No                        | 1    |
+| DCSync              | Domain              | Yes                  | Yes                            | No                        | 2    |
+| GetChangesAll       | Domain              | Yes                  | Yes                            | No                        | 2    |
+| AllExtendedRights   | Domain              | Yes                  | Yes                            | No                        | 2    |
+| GenericAll          | Domain              | Yes                  | Yes                            | No                        | 2    |
+| WriteDACL           | Domain              | Yes                  | Yes                            | No                        | 2    |
+| WriteOwner          | Domain              | Yes                  | Yes                            | No                        | 2    |
+| Owns                | Domain              | Yes                  | Yes                            | No                        | 2    |
+| GenericAll          | GPO/OU              | Yes                  | No                             | No                        | 1    |
+| WriteDACL           | GPO/OU              | Yes                  | No                             | No                        | 1    |
+| WriteOwner          | GPO/OU              | Yes                  | No                             | No                        | 1    |
+| Owns                | GPO/OU              | Yes                  | No                             | No                        | 1    |
 
 
 ## Acknowledgments
-- The [py2neo](https://py2neo.org/2021.1/) project which makes this possible.
+- The [py2neo](https://py2neo.org) project which makes this possible.
 - The [PlumHound](https://github.com/PlumHound/PlumHound) project which gave me the idea of creating something similar which suited my needs.
 - The [Bloodhound Gang Slack channel](bloodhoundhq.slack.com) for Cypher help.
 - The [BloodHound project](https://bloodhound.readthedocs.io/en/latest/index.html) for changing the world.
