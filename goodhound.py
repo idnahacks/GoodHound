@@ -265,7 +265,7 @@ def output(results, grandtotals, totalpaths, args, starttime, new_path, seen_bef
     grandtotals[0]["New Paths"] = new_path
     totaldf = pd.DataFrame(grandtotals)
     weakest_linkdf = pd.DataFrame(weakest_links, columns=["Weakest Link", "Number of Paths it appears in", "% of Total Paths"])
-    resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
+    resultsdf = pd.DataFrame(results, columns=["Starting Group", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
     if args.output_format == "stdout":
         print("\n\nGRAND TOTALS")
         print("============")
