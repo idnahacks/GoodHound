@@ -97,9 +97,9 @@ and so an example to retrieve a subset might be:
 ```
 
 #### SQLite Database
-By default Goodhound stores all attack paths in a SQLite database stored at db/goodhound.db. This gives the opportunity to query attack paths over time.  
+By default Goodhound stores all attack paths in a SQLite database called goodhound.db stored in the local directory. This gives the opportunity to query attack paths over time.  
 --db-skip will skip logging anything to a local database  
---sql-path can be used to point Goodhound to a SQLite db file that is not stored in the default location.
+--sql-path can be used to point Goodhound to a SQLite db file that is not stored in the default location. The db file will be created in the set location if it does not already exist.
 
 ### Performance
 
