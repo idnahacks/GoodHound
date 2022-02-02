@@ -35,7 +35,7 @@ def arguments():
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
     parsegroupsql = argparser.add_argument_group('SQLite Database')
     parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
-    parsegroupsql.add_argument("-sqlpath", "--sql-path", default="db/goodhound.db", help="Sets the location of the SQLite Database", type=str)
+    parsegroupsql.add_argument("-sqlpath", "--sql-path", default="goodhound.db", help="Sets the location of the SQLite Database", type=str)
     args = argparser.parse_args()
     return args
 
@@ -306,9 +306,9 @@ def db(allresults, graph, args):
     first_seen INTEGER NOT NULL,
 	last_seen INTEGER NOT NULL
 );"""
-    if args.sql_path == "db\goodhound.db":
-        if not os.path.exists(os.path.join(os.getcwd(), 'db')):
-            os.makedirs('db')
+    #if args.sql_path == "goodhound.db":
+     #   if not os.path.exists(os.path.join(os.getcwd(), 'db')):
+      #      os.makedirs('db')
     conn = None
     try:
         conn = sqlite3.connect(args.sql_path)
