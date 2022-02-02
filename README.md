@@ -14,6 +14,17 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 
 ## Usage
 
+### Quick Start
+For a very quick start with most of the default options, make sure you have your neo4j server running and loaded with SharpHound data and run:
+```
+git clone https://github.com/idnahacks/GoodHound.git
+cd GoodHound
+pip install -r requirements.txt
+python goodhound.py -p neo4jpassword -o csv -f .
+```
+This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
+
+
 ### Default behaviour
 
 All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (http://localhost:7474) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the ouput to the screen.
