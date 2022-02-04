@@ -17,6 +17,7 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 ### Quick Start
 For a very quick start with most of the default options, make sure you have your neo4j server running and loaded with SharpHound data and run:
 ```
+sudo apt install python3-testresources
 git clone https://github.com/idnahacks/GoodHound.git
 cd GoodHound
 pip install -r requirements.txt
