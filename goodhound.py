@@ -191,7 +191,7 @@ def busiestpath(groupswithpath, graph, args):
     else:
         top_paths = (sorted(unique_groupswpath, key=lambda i: (-i[5], i[4], i[3]))[0:args.results])
     # Processes the output into a dataframe
-    total_unique_users = len((pd.Series(users)).unique())
+    total_unique_users = len((pd.Series(users, dtype="O")).unique())
     total_users_percentage = round(((total_unique_users/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":total_unique_users, "Percentage of Total Enabled Non-Admins":total_users_percentage, "Total Paths":totalpaths}]
     grouploopfinishtime = datetime.now()
