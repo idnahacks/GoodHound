@@ -20,8 +20,8 @@ For a very quick start with most of the default options, make sure you have your
 sudo apt install python3-testresources
 git clone https://github.com/idnahacks/GoodHound.git
 cd GoodHound
-pip install -r requirements.txt
-python goodhound.py -p neo4jpassword -o csv -f .
+pip3 install -r requirements.txt
+python3 goodhound.py -p neo4jpassword -o csv -f .
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
