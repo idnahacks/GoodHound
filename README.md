@@ -12,6 +12,9 @@
 
 GoodHound operationalises Bloodhound by determining the busiest paths to high value targets and creating actionable output to prioritise remediation of attack paths.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0B7AAAK2)  
+> I'm lucky enough to do this for a living. Any donations will be passed on to my local foodbank, animal sanctuary and animal rescue centres.
+
 ## Usage
 
 ### Quick Start
