@@ -2,7 +2,6 @@ from sqlite3.dbapi2 import Error
 from py2neo import Graph
 from datetime import datetime
 import sys
-import os
 import argparse
 import pandas as pd
 import logging
