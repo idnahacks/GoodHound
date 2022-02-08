@@ -30,7 +30,7 @@ This will process the data in neo4j and output 3 csv reports in the GoodHound di
 
 ### Default behaviour
 
-All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default ip (bolt://localhost:7687) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the ouput to the screen.
+All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default location (bolt://localhost:7687) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the ouput to the screen.
 
 The neo4j database will need to already have the Sharphound collector output uploaded using the Upload button in the Bloodhound GUI. An example Sharphound output collected using [Bad Blood](https://github.com/davidprowe/BadBlood) on a [Detection Labs](https://detectionlab.network/) can be found in this repo at [/Sample%20SharpHound%20Output](/Sample%20SharpHound%20Output).
 
@@ -45,7 +45,7 @@ Each path is then displayed showing the starting group, the number of non-admin 
 ### Options
 
 #### Database settings
--s can be used to point GoodHound to a server other than the default localhost installation (bolt://localhost:7687)
+-s can be used to point GoodHound to a server other than the default localhost installation (bolt://localhost:7687)  
 -u can be used to set the neo4j username  
 -p can be used to set the neo4j password  
 
