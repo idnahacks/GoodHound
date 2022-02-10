@@ -88,11 +88,15 @@ def cost(graph):
         sys.exit(1)
 
 def shortestpath(graph, starttime, args):
-    """Runs a shortest path query for all AD groups to high value targets. Returns a list of groups."""
+    """
+    Runs a shortest path query for all AD groups to high value targets. Returns a list of groups.
+    Respect to the Plumhound project https://github.com/PlumHound/PlumHound and BloodhoundGang Slack channel https://bloodhoundhq.slack.com for the influence and assistance with this.
+    """
     if args.query:
         query_shortestpath=f"%s" %args.query
     else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) 
+        query_shortestpath="""
+match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) 
 with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, 
 length(p) as hops, 
 g.name as groupname, 
