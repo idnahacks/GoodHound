@@ -121,10 +121,14 @@ return groupname, hops, min(cost) as cost, nodeLabels, relLabels, path + final_n
     logging.info("Finished query in : {} Minutes".format(querytime))
     return groupswithpath
 
-def busiestpath(groupswithpath, graph, args):
-    """Calculate the busiest paths by getting the number of users in the Groups that have a path to Highvalue, sorting the result, calculating some statistics and returns a list."""
+def totalusers(graph):
+    """Calculate the total users in the dataset."""
     totalenablednonadminsquery="""match (u:User {highvalue:FALSE, enabled:TRUE}) return count(u)"""
     totalenablednonadminusers = int(graph.run(totalenablednonadminsquery).evaluate())
+    return totalenablednonadminusers
+
+def busiestpath(groupswithpath, totalenablednonadminusers, graph, args):
+    """Calculate the busiest paths by getting the number of users in the Groups that have a path to Highvalue, sorting the result, calculating some statistics and returns a list."""
     totalpaths = len(groupswithpath)
     paths=[]
     users=[]
@@ -373,7 +377,8 @@ def main():
     cost(graph)
     bloodhound41patch(graph)
     groupswithpath = shortestpath(graph, starttime, args)
-    top_paths, grandtotals, totalpaths, allresults = busiestpath(groupswithpath, graph, args)
+    totalenablednonadminusers = totalusers(graph)
+    top_paths, grandtotals, totalpaths, allresults = busiestpath(groupswithpath, totalenablednonadminusers, graph, args)
     weakest_links = commonlinks(groupswithpath, totalpaths)
     if not args.db_skip:
         new_path, seen_before, scandatenice = db(allresults, graph, args)
