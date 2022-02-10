@@ -61,6 +61,11 @@ def schema(graph, args):
         logging.warning("Error setting custom schema.")
         sys.exit(1)
 
+def bloodhound41patch(graph):
+    hvpatch="""match (u:User) where u.highvalue is NULL set u.highvalue = FALSE"""
+    graph.run(hvpatch)
+    return()
+
 def cost(graph):
     cost=["MATCH (n)-[r:MemberOf]->(m:Group) SET r.pwncost = 0",
     "MATCH (n)-[r:HasSession]->(m) SET r.pwncost = 3",
@@ -362,6 +367,7 @@ def main():
     if args.schema:
         schema(graph, args)
     cost(graph)
+    bloodhound41patch(graph)
     groupswithpath = shortestpath(graph, starttime, args)
     top_paths, grandtotals, totalpaths, allresults = busiestpath(groupswithpath, graph, args)
     weakest_links = commonlinks(groupswithpath, totalpaths)
