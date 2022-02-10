@@ -127,18 +127,20 @@ def totalusers(graph):
     totalenablednonadminusers = int(graph.run(totalenablednonadminsquery).evaluate())
     return totalenablednonadminusers
 
+def getmaxcost(groupswithpath):
+    """Get the maximum amount of hops in the dataset to be used as part of the risk score calculation"""
+    maxhops=[]
+    for sublist in groupswithpath:
+        maxhops.append(sublist.get('hops'))
+    maxcost = (max(maxhops))*3+1
+    return maxcost
+
 def busiestpath(groupswithpath, totalenablednonadminusers, graph, args):
     """Calculate the busiest paths by getting the number of users in the Groups that have a path to Highvalue, sorting the result, calculating some statistics and returns a list."""
     totalpaths = len(groupswithpath)
     paths=[]
     users=[]
     i=0
-    # Get the maximum amount of hops in the dataset to be used as part of the risk score calculation
-    maxhops=[]
-    for sublist in groupswithpath:
-        maxhops.append(sublist.get('hops'))
-    maxcost = (max(maxhops))*3+1
-
     grouploopstart = datetime.now()
     print("Counting Users in Groups")
     for g in groupswithpath:
@@ -154,6 +156,7 @@ def busiestpath(groupswithpath, totalenablednonadminusers, graph, args):
             logging.info(f"Null edge cost found with {group} and {hops} hops.")
             cost = 0
         # Establishes if the group has already had the number of group members counted and skips it if so
+        maxcost = getmaxcost(groupswithpath)
         if (len(paths)==0) or (any(group == path[0] for path in paths) != True):
             print (f"Processing path {i} of {totalpaths}", end="\r")
             query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return distinct(u.name) as members""" % group
