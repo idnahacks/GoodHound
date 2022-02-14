@@ -129,7 +129,7 @@ def getdirectgroupmembers(graph, uniquegroupswithpath):
     groupswithmembers = []
     i=0
     for group in uniquegroupswithpath:
-        print (f"Processing path {i} of {totalgroupswithpath}", end="\r")
+        print (f"Finding direct members of {group} - {i} of {totalgroupswithpath}..................................", end="\r")
         i +=1
         query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf]->(g:Group {name:"%s"}) return distinct(u.name) as members""" % group
         group_members = graph.run(query_group_members).data()
@@ -174,6 +174,7 @@ def getindirectgroupmembers(graph, groupswithmembers):
     """Gets a list of indirect group members for every group with a path and appends them to the list"""
     for g in groupswithmembers:
         group = g.get('groupname')
+        print (f"Finding indirect members of {group}........................................", end="\r")
         nestedgroupsquery = """match (ng:Group {highvalue:FALSE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return ng.name as nestedgroups""" %group
         nestedgroups = graph.run(nestedgroupsquery).data()
         num_nestedgroups = len(nestedgroups)
