@@ -66,6 +66,7 @@ def bloodhound41patch(graph):
     hvuserpatch="""match (u:User) where u.highvalue is NULL set u.highvalue = FALSE"""
     graph.run(hvuserpatch)
     hvgrouppatch="""match (g:Group) where u.highvalue is NULL set g.highvalue = FALSE"""
+    graph.run(hvgrouppatch)
     return()
 
 def cost(graph):
