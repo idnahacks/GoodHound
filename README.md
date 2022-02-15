@@ -23,7 +23,7 @@ For a very quick start with most of the default options, make sure you have your
 git clone https://github.com/idnahacks/GoodHound.git
 cd GoodHound
 pip install -r requirements.txt
-python goodhound.py -p neo4jpassword -o csv -f .
+python goodhound.py -p "neo4jpassword" -o csv -f .
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
@@ -58,6 +58,8 @@ Each path is then displayed showing the starting group, the number of non-admin 
 -f an optional filepath for the csv output option  
 -v enables verbose output to display query times
 
+By default the output is csv in the current working directory.
+
 #### Number of results
 -r can be used to select the amount of results to show. By default the top 5 busiest paths are displayed.  
 -sort can be used to sort by:
@@ -74,30 +76,8 @@ match (c:Computer {name:'DBSERVER01@YOURDOMAIN.LOCAL'}) set c.highvalue=TRUE
 The schema can contain multiple queries, each on a separate line.
 
 #### Query
--q can be used to override the default query that is run to calculate the busiest path. This can be useful if your dataset is large and you want to temporarily load in a query that looks at a smaller set of your data in order to quickly try GoodHound out.  
+-q can be used to override the default query that is run to calculate the busiest path. This is largely for debugging the script if your dataset is large and you want to temporarily load in a query that looks at a smaller set of your data in order to quickly try GoodHound out.  
 Care should be taken to ensure that the query provides output in the same way as the built-in query, so it doesn't stop any other part of GoodHound running.  
-The original query is :  
-```
-'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) 
-with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, 
-length(p) as hops, 
-g.name as groupname, 
-[node in nodes(p) | coalesce(node.name, "")] as nodeLabels,
-[rel in relationships(p) | type(rel)] as relationshipLabels
-with
-reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path,
-nodeLabels[hops] as final_node,
-hops as hops, 
-groupname as groupname, 
-cost as cost,
-nodeLabels as nodeLabels,
-relationshipLabels as relLabels
-return groupname, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path'
-```
-and so an example to retrieve a subset might be:  
-```
-'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.pwncost) as cost, length(p) as hops, g.name as groupname, [node in nodes(p) | coalesce(node.name, '')] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels with reduce(path='', x in range(0,hops-1) | path + nodeLabels[x] + ' - ' + relationshipLabels[x] + ' -> ') as path, nodeLabels[hops] as final_node, hops as hops, groupname as groupname, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels return groupname, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path'
-```
 
 #### SQLite Database
 By default Goodhound stores all attack paths in a SQLite database called goodhound.db stored in the local directory. This gives the opportunity to query attack paths over time.  
@@ -175,13 +155,12 @@ The scores assigned to each exploit are:
 | SqlAdmin            | Any                 | Yes                  | No                             | No                        | 1    |
 | AllExtendedRights   | Group/User/Computer | Yes                  | No                             | No                        | 1    |
 | AddMember           | Group               | Yes                  | No                             | No                        | 1    |
+| AddSelf             | Group               | Yes                  | No                             | No                        | 1    |
 | GenericAll          | Group/User/Computer | Yes                  | No                             | No                        | 1    |
 | WriteDACL           | Group/User/Computer | Yes                  | No                             | No                        | 1    |
 | WriteOwner          | Group/User/Computer | Yes                  | No                             | No                        | 1    |
 | Owns                | Group/User/Computer | Yes                  | No                             | No                        | 1    |
 | GenericWrite        | Group/User/Computer | Yes                  | No                             | No                        | 1    |
-| DCSync              | Domain              | Yes                  | Yes                            | No                        | 2    |
-| GetChangesAll       | Domain              | Yes                  | Yes                            | No                        | 2    |
 | AllExtendedRights   | Domain              | Yes                  | Yes                            | No                        | 2    |
 | GenericAll          | Domain              | Yes                  | Yes                            | No                        | 2    |
 | WriteDACL           | Domain              | Yes                  | Yes                            | No                        | 2    |
@@ -191,6 +170,8 @@ The scores assigned to each exploit are:
 | WriteDACL           | GPO/OU              | Yes                  | No                             | No                        | 1    |
 | WriteOwner          | GPO/OU              | Yes                  | No                             | No                        | 1    |
 | Owns                | GPO/OU              | Yes                  | No                             | No                        | 1    |
+| WriteSPN            | User                | Yes                  | No                             | No                        | 1    |
+| AddKeyCredentialLink| Any                 | Yes                  | Yes                            | No                        | 2    |
 
 
 ## Acknowledgments
