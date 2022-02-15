@@ -65,7 +65,7 @@ def bloodhound41patch(graph):
     """Sharphound 4.1 doesn't automatically tag non highvalue items with the attribute."""
     hvuserpatch="""match (u:User) where u.highvalue is NULL set u.highvalue = FALSE"""
     graph.run(hvuserpatch)
-    hvgrouppatch="""match (g:Group) where u.highvalue is NULL set g.highvalue = FALSE"""
+    hvgrouppatch="""match (g:Group) where g.highvalue is NULL set g.highvalue = FALSE"""
     graph.run(hvgrouppatch)
     return()
 
