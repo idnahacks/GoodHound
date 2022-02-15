@@ -135,3 +135,4 @@ requirements2.txt
 pwnscore.txt
 db/goodhound.db
 goodhound.db
+goodhound.db.old
