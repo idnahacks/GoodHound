@@ -458,7 +458,7 @@ def main():
     banner()
     graph = db_connect(args)
     starttime = datetime.now()
-    warmupdb
+    warmupdb(graph)
     if args.schema:
         schema(graph, args)
     cost(graph)
