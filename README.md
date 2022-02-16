@@ -30,26 +30,37 @@ This will process the data in neo4j and output 3 csv reports in the GoodHound di
 
 ### Default behaviour
 
-All options are __optional__. The default behaviour is to connect to a neo4j server setup with the default location (bolt://localhost:7687) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets as defined with the default Bloodhound setup, and print the ouput to the screen.
+All options are __optional__.  
+The default behaviour is to connect to a neo4j server setup with the default location (bolt://localhost:7687) and credentials (neo4j:neo4j), calculate the busiest paths from non-admin users to highvalue targets, the "weakest links" (the links of an attack path that are seen across many paths), and some grandtotals.  
+3 separate csv files will be created with details for each of these 3 sections.
 
 The neo4j database will need to already have the Sharphound collector output uploaded using the Upload button in the Bloodhound GUI. An example Sharphound output collected using [Bad Blood](https://github.com/davidprowe/BadBlood) on a [Detection Labs](https://detectionlab.network/) can be found in this repo at [/Sample%20SharpHound%20Output](/Sample%20SharpHound%20Output).
 
+## The Output
+### Summary Report
+The Summary report contains some high level information regarding the number of paths found, the number of enabled non-admin users that are exposed to an attack path, and the number of paths that have been seen before based on the entries in the GoodHound local database.  
+
+The end goal is to reduce the number of exposed users, by taking a two pronged approach.  
+Busiest paths will highlight attack paths that are exposed to the greatest number of users.  
+Weakest links will highlight links that might help to close down the number of paths available.
+
+### Busiest Paths Report
 The output shows a total number of unique users that have a path to a HighValue target.  
-It then breaks this down to individual paths, ordered by the risk score (more on this later).
+It then breaks this down to individual paths, ordered by the risk score (more on this later).  
 Each path is then displayed showing the starting group, the number of non-admin users within that path, the number of hops, the risk score, a text version of the path and also a Cypher query. This cypher query can be directly copied into the Raw Query bar in Bloodhound for a visual representation of the attack path. 
 
-![Example Output](images/example-output.png)  
-![BloodHound Attack Path](images/bloodhound-raw-query.png)  
+### Weakest Links Report
+The weakest links report is a way to potentially find links of attack paths that repeatedly show up in the dataset. For each weak link shown the report will also tell you how many of the total attack paths that was seen in.
 
 
-### Options
+## Options
 
-#### Database settings
+### Database settings
 -s can be used to point GoodHound to a server other than the default localhost installation (bolt://localhost:7687)  
 -u can be used to set the neo4j username  
 -p can be used to set the neo4j password  
 
-#### Output formats
+### Output formats
 -o can be used to select from:  
 - stdout -displays the output on screen
 - csv saves a comma separated values file for use with reporting or MI (completing the graphs, actions, charts trifecta in the tagline)
@@ -60,14 +71,14 @@ Each path is then displayed showing the starting group, the number of non-admin 
 
 By default the output is csv in the current working directory.
 
-#### Number of results
+### Number of results
 -r can be used to select the amount of results to show. By default the top 5 busiest paths are displayed.  
 -sort can be used to sort by:
  - number of users with the path (descending)
  - hop count (ascending)
  - risk score (descending)
 
-#### Schema
+### Schema
 -sch select a file containing cypher queries to set a custom schema to alter the default Bloodhound schema. This can be useful if you want to set the 'highvalue' label on AD objects that are not covered as standard, helping to provide internal context.
 For example, you want to add the highvalue label to 'dbserver01' because it contains all of your customer records. The schema file to load in could contain the following cypher query:  
 ```
@@ -75,18 +86,20 @@ match (c:Computer {name:'DBSERVER01@YOURDOMAIN.LOCAL'}) set c.highvalue=TRUE
 ```
 The schema can contain multiple queries, each on a separate line.
 
-#### Query
+### Query
 -q can be used to override the default query that is run to calculate the busiest path. This is largely for debugging the script if your dataset is large and you want to temporarily load in a query that looks at a smaller set of your data in order to quickly try GoodHound out.  
 Care should be taken to ensure that the query provides output in the same way as the built-in query, so it doesn't stop any other part of GoodHound running.  
 
-#### SQLite Database
+### SQLite Database
 By default Goodhound stores all attack paths in a SQLite database called goodhound.db stored in the local directory. This gives the opportunity to query attack paths over time.  
 --db-skip will skip logging anything to a local database  
 --sql-path can be used to point Goodhound to a SQLite db file that is not stored in the default location. The db file will be created in the set location if it does not already exist.
 
-### Performance
+## Performance
 
-Larger datasets can take time to process. GoodHound does "warm-up" the database using the same query that the Warm-Up Database option in the Bloodhound GUI does, however the Neo4j documentation suggests that this is no longer necessary, and in practice I haven't seen it make any different on Neo4j 4.0 and greater. There are also many guides for tuning the neo4j database for increased performance which are out of scope here (although if I make any significant improvements I'll document the findings).
+Larger datasets can take time to process.  
+GoodHound does "warm-up" the database using the same query that the Warm-Up Database option in the Bloodhound GUI does, however the Neo4j documentation suggests that this is no longer necessary, and in practice I haven't seen it make any different on Neo4j 4.0 and greater.  
+There are also many guides for tuning the neo4j database for increased performance which are out of scope here (although if I make any significant improvements I'll document the findings).
 
 ## Installation
 
@@ -128,12 +141,11 @@ Risk Score = (MaxExploitCostPossible - ExploitCost) / MaxExploitCostPossible * %
 MaxExploitCostPossible is 3 * the maximum number of hops seen across all attack paths. 3 is chosen because it is the highest score any single hop in an attack path can have.
 
 ### Exploit Cost
-Exploit Cost is an estimation of how noisy or complex a particular attack path might be.  
+Exploit Cost is an estimation of how noisy or complex a particular attack path might be.  (Kudos to the [ACLPWN](https://github.com/fox-it/aclpwn.py) project for this idea.)  
 For example, if an attacker has compromised userA and userA is a member of groupB then that step in the attack path doesn't require any further exploitation or real opsec considerations.  
- Conversely if an attacker has compromised a user's workstation which also has an admin user session on it, to exploit this the attacker would (possibly) need to elevate permissions on the workstation and run something like Mimikatz to extract credentials from memory. This would require OPSEC considerations around monitoring of LSASS processes and also potentially require endpoint protection bypasses. All of which make the exploitation that little bit more difficult.
+Conversely if an attacker has compromised a user's workstation which also has an admin user session on it, to exploit this the attacker would (possibly) need to elevate permissions on the workstation and run something like Mimikatz to extract credentials from memory. This would require OPSEC considerations around monitoring of LSASS processes and also potentially require endpoint protectionbypasses. All of which make the exploitation that little bit more difficult.
 
-**These scores have been assigned based upon my personal best judgement. They are not set in stone and discussions around the scoring are welcome and will only help to improve this.**
-
+*These scores have been assigned based upon my personal best judgement. They are not set in stone and discussions around the scoring are welcome and will only help to improve this.**
 The scores assigned to each exploit are:
 | Relationship        | Target Node Type    | OPSEC Considerations | Possible Protections to Bypass | Possible Privesc Required | Cost |
 |---------------------|---------------------|----------------------|--------------------------------|---------------------------|------|
@@ -177,5 +189,6 @@ The scores assigned to each exploit are:
 ## Acknowledgments
 - The [py2neo](https://py2neo.org) project which makes this possible.
 - The [PlumHound](https://github.com/PlumHound/PlumHound) project which gave me the idea of creating something similar which suited my needs.
+- The [aclpwn](https://github.com/fox-it/aclpwn.py) for the idea around exploit cost.
 - The [Bloodhound Gang Slack channel](https://bloodhoundhq.slack.com) for Cypher help.
-- The [BloodHound project](https://bloodhound.readthedocs.io/en/latest/index.html) for changing the world.
+- The [BloodHound project](https://bloodhound.readthedocs.io/en/latest/index.html) for changing the world and for continuing their support for the Open-Source community even when having a commercial offering.
