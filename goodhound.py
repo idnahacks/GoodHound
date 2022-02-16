@@ -73,7 +73,7 @@ def fixnullobjectnames(paths):
     for p in paths:
         name = p.get("startnode")
         sid = p.get("SID")
-        if name == "None":
+        if name == None:
             p["startnode"] = sid
 
 def cost(graph):
