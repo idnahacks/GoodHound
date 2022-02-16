@@ -248,7 +248,8 @@ def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers
         cost = g.get('cost')
         fullpath = g.get('full_path')
         endnode = g.get('nodeLabels')[-1]
-        query = bh_query(startnode, hops, endnode)
+        #query = bh_query(startnode, hops, endnode)
+        query = bh_query(g)
         uid = hashlib.md5(fullpath.encode()).hexdigest()
         if cost == None:
             # While debugging this should highlight edges without a score assigned. CHECK ON THIS LOGIC, I'M NOT SURE IT'S CORRECT.
@@ -267,7 +268,7 @@ def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers
         cost = u.get('cost')
         fullpath = u.get('full_path')
         endnode = u.get('nodeLabels')[-1]
-        query = bh_query(startnode, hops, endnode)
+        query = bh_query(u)
         uid = hashlib.md5(fullpath.encode()).hexdigest()
         if cost == None:
             # While debugging this should highlight edges without a score assigned. CHECK ON THIS LOGIC, I'M NOT SURE IT'S CORRECT.
@@ -353,11 +354,16 @@ def weakestlinks(groupswithpath, totalpaths, userswithpath):
         weakest_links.append(l)
     return weakest_links
 
-    
-def bh_query(startnode, hops, endnode):
+def bh_query(path):
     """Generate a replayable query for each finding for Bloodhound visualisation."""
-    previous_hop = hops-1
-    query = """match p=((g {name:'%s'})-[*%s..%s]->(n {name:'%s'})) return p""" %(startnode, previous_hop, hops, endnode)
+    query = """match p=(({name:'%s'})""" %path["nodeLabels"][0]
+    n=1
+    for r in path["relLabels"]:
+        nextstring = "-[:%s]->({name:'%s'})" %(r, path["nodeLabels"][n])
+        query = query + nextstring
+        n += 1
+    finalstring = ") return p"
+    query = query + finalstring
     return query
 
 def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths, new_path, seen_before, weakest_links, top_results):
@@ -488,7 +494,6 @@ def main():
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
     groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
     groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
-    #userswithpath = shortestuserpath(graph)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
     new_path, seen_before, scandatenice = db(results, graph, args)
