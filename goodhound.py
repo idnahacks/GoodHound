@@ -114,9 +114,11 @@ def shortestgrouppath(graph, starttime, args):
         logging.warning("There is a problem with the inputted query. If you have entered a custom query check the syntax.")
         sys.exit(1)
     fixnullobjectnames(groupswithpath)
+    if len(groupswithpath) == 0:
+        userswithpath = shortestuserpath(graph)
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     logging.info("Finished group query in : {} Minutes".format(querytime))
-    return groupswithpath
+    return groupswithpath, userswithpath
 
 def shortestuserpath(graph):
     """
@@ -444,6 +446,10 @@ def db(results, graph, args):
         scandate, scandatenice = getscandate(graph)
     return new_path, seen_before, scandatenice
 
+def warmupdb(graph):
+    logging.info("Warming up database")
+    warmupdbquery = """MATCH (n) OPTIONAL MATCH (n)-[r]->() RETURN count(n.name) + count(r.isacl)"""
+    graph.run(warmupdbquery)
 
 def main():
     args = arguments()
@@ -452,16 +458,17 @@ def main():
     banner()
     graph = db_connect(args)
     starttime = datetime.now()
+    warmupdb
     if args.schema:
         schema(graph, args)
     cost(graph)
     bloodhound41patch(graph)
-    groupswithpath = shortestgrouppath(graph, starttime, args)
+    groupswithpath, userswithpath = shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = totalusers(graph)
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
     groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
     groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
-    userswithpath = shortestuserpath(graph)
+    #userswithpath = shortestuserpath(graph)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
     new_path, seen_before, scandatenice = db(results, graph, args)
