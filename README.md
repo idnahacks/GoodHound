@@ -86,7 +86,7 @@ By default Goodhound stores all attack paths in a SQLite database called goodhou
 
 ### Performance
 
-Larger datasets can take time to process. Some performance improvements can be seen by selecting to "warm-up" the database using the option in the Bloodhound GUI. There are also many guides for tuning the neo4j database for increased performance which are out of scope here (although if I make any significant improvements I'll document the findings).
+Larger datasets can take time to process. GoodHound does "warm-up" the database using the same query that the Warm-Up Database option in the Bloodhound GUI does, however the Neo4j documentation suggests that this is no longer necessary, and in practice I haven't seen it make any different on Neo4j 4.0 and greater. There are also many guides for tuning the neo4j database for increased performance which are out of scope here (although if I make any significant improvements I'll document the findings).
 
 ## Installation
 
