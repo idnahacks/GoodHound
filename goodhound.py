@@ -67,6 +67,25 @@ def bloodhound41patch(graph):
     graph.run(hvpatch)
     return()
 
+def set_hv_for_dcsyncers(graph):
+    """As DCSync ability is calculated in a different way to the regular shortest path query this function finds all principals that can perform a DCSync, and then looks at all principles that are members of High Value groups. Any DCSync principle that is not already in the highvalue list is then targetted to find out which non-highvalue groups can reach these nodes."""
+    #This gets back a list of users that are members of highvalue groups. These will already have attack paths mapped with the main groupswithpath query and so don't need an extra check
+    hvusersquery="""match (n)-[:MemberOf*1..]->(g:Group {highvalue:true}) with n as hv match (hv {highvalue:false}) return distinct(hv.name) as name"""
+    hvusers=graph.run(hvusersquery).data()
+    dcsyncusersquery="""MATCH (n1)-[:MemberOf|GetChanges*1..]->(u:Domain) WITH n1,u MATCH (n1)-[:MemberOf|GetChangesAll*1..]->(u) WITH n1,u MATCH p = (n1)-[:MemberOf|GetChanges|GetChangesAll*1..]->(u) RETURN distinct(n1.objectid) as sid, n1.name as name"""
+    dcsyncusers=graph.run(dcsyncusersquery).data()
+    for u in dcsyncusers:
+        name = u.get("name")
+        sid = u.get("sid")
+        #fix any objects that have a null name
+        if name == None:
+            name = sid
+        #we're looking for users that can DCSync that are not already covered by being a member of a highvalue group    
+        if name not in hvusers:
+            addhighvaluequery="""MATCH (n {name:"%s"}) set n.highvalue=true""" %name
+            graph.run(addhighvaluequery)
+        
+
 def fixnullobjectnames(paths):
     for p in paths:
         name = p.get("startnode")
@@ -463,6 +482,7 @@ def main():
         schema(graph, args)
     cost(graph)
     bloodhound41patch(graph)
+    set_hv_for_dcsyncers(graph)
     groupswithpath, userswithpath = shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = totalusers(graph)
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
