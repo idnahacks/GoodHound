@@ -114,6 +114,8 @@ def shortestgrouppath(graph, starttime, args):
     fixnullobjectnames(groupswithpath)
     if len(groupswithpath) == 0:
         userswithpath = shortestuserpath(graph)
+    else:
+        userswithpath=[]
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     logging.info("Finished group query in : {} Minutes".format(querytime))
     return groupswithpath, userswithpath
