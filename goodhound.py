@@ -194,7 +194,7 @@ def getindirectgroupmembers(graph, groupswithmembers):
     for g in groupswithmembers:
         group = g.get('groupname')
         logging.info(f"Finding indirect members of {group}")
-        nestedgroupsquery = """match (ng:Group {highvalue:FALSE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return ng.name as nestedgroups""" %group
+        nestedgroupsquery = """match (ng:Group {highvalue:FALSE})-[:MemberOf*1..]->(g:Group {name:"%s"}) where ng<>g return ng.name as nestedgroups""" %group
         nestedgroups = graph.run(nestedgroupsquery).data()
         num_nestedgroups = len(nestedgroups)
         indirectmembers = []
