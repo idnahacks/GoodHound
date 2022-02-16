@@ -62,12 +62,36 @@ def schema(graph, args):
         sys.exit(1)
 
 def bloodhound41patch(graph):
-    """Sharphound 4.1 doesn't automatically tag non highvalue items with the attribute."""
-    hvuserpatch="""match (u:User) where u.highvalue is NULL set u.highvalue = FALSE"""
-    graph.run(hvuserpatch)
-    hvgrouppatch="""match (g:Group) where g.highvalue is NULL set g.highvalue = FALSE"""
-    graph.run(hvgrouppatch)
+    """Bloodhound 4.1 doesn't automatically tag non highvalue items with the attribute."""
+    hvpatch="""match (n:Base) where n.highvalue is NULL set n.highvalue = FALSE"""
+    graph.run(hvpatch)
     return()
+
+def set_hv_for_dcsyncers(graph):
+    """As DCSync ability is calculated in a different way to the regular shortest path query this function finds all principals that can perform a DCSync, and then looks at all principles that are members of High Value groups. Any DCSync principle that is not already in the highvalue list is then targetted to find out which non-highvalue groups can reach these nodes."""
+    #This gets back a list of users that are members of highvalue groups. These will already have attack paths mapped with the main groupswithpath query and so don't need an extra check
+    hvusersquery="""match (n)-[:MemberOf*1..]->(g:Group {highvalue:true}) with n as hv match (hv {highvalue:false}) return distinct(hv.name) as name"""
+    hvusers=graph.run(hvusersquery).data()
+    dcsyncusersquery="""MATCH (n1)-[:MemberOf|GetChanges*1..]->(u:Domain) WITH n1,u MATCH (n1)-[:MemberOf|GetChangesAll*1..]->(u) WITH n1,u MATCH p = (n1)-[:MemberOf|GetChanges|GetChangesAll*1..]->(u) RETURN distinct(n1.objectid) as sid, n1.name as name"""
+    dcsyncusers=graph.run(dcsyncusersquery).data()
+    for u in dcsyncusers:
+        name = u.get("name")
+        sid = u.get("sid")
+        #fix any objects that have a null name
+        if name == None:
+            name = sid
+        #we're looking for users that can DCSync that are not already covered by being a member of a highvalue group    
+        if name not in hvusers:
+            addhighvaluequery="""MATCH (n {name:"%s"}) set n.highvalue=true""" %name
+            graph.run(addhighvaluequery)
+        
+
+def fixnullobjectnames(paths):
+    for p in paths:
+        name = p.get("startnode")
+        sid = p.get("SID")
+        if name == None:
+            p["startnode"] = sid
 
 def cost(graph):
     cost=["MATCH (n)-[r:MemberOf]->(m:Group) SET r.cost = 0",
@@ -99,16 +123,21 @@ def shortestgrouppath(graph, starttime, args):
     if args.query:
         query_shortestpath=f"%s" %args.query
     else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path"""
+        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
     print("Running query, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
     except:
         logging.warning("There is a problem with the inputted query. If you have entered a custom query check the syntax.")
         sys.exit(1)
+    fixnullobjectnames(groupswithpath)
+    if len(groupswithpath) == 0:
+        userswithpath = shortestuserpath(graph)
+    else:
+        userswithpath=[]
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     logging.info("Finished group query in : {} Minutes".format(querytime))
-    return groupswithpath
+    return groupswithpath, userswithpath
 
 def shortestuserpath(graph):
     """
@@ -116,8 +145,9 @@ def shortestuserpath(graph):
     """
     print("Running user query. This can also take some time.")
     userquerystarttime = datetime.now()
-    query_shortestpath="""match p=shortestpath((u:User {highvalue:FALSE})-[:HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, u.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path"""
+    query_shortestpath="""match p=shortestpath((u:User {highvalue:FALSE, enabled:TRUE})-[:HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, u.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, u.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
     userswithpath=graph.run(query_shortestpath).data()
+    fixnullobjectnames(userswithpath)
     querytime = round((datetime.now()-userquerystarttime).total_seconds() / 60)
     logging.info("Finished user query in : {} Minutes".format(querytime))
     return userswithpath
@@ -183,7 +213,7 @@ def getindirectgroupmembers(graph, groupswithmembers):
     for g in groupswithmembers:
         group = g.get('groupname')
         logging.info(f"Finding indirect members of {group}")
-        nestedgroupsquery = """match (ng:Group {highvalue:FALSE})-[:MemberOf*1..]->(g:Group {name:"%s"}) return ng.name as nestedgroups""" %group
+        nestedgroupsquery = """match (ng:Group {highvalue:FALSE})-[:MemberOf*1..]->(g:Group {name:"%s"}) where ng<>g return ng.name as nestedgroups""" %group
         nestedgroups = graph.run(nestedgroupsquery).data()
         num_nestedgroups = len(nestedgroups)
         indirectmembers = []
@@ -435,6 +465,10 @@ def db(results, graph, args):
         scandate, scandatenice = getscandate(graph)
     return new_path, seen_before, scandatenice
 
+def warmupdb(graph):
+    logging.info("Warming up database")
+    warmupdbquery = """MATCH (n) OPTIONAL MATCH (n)-[r]->() RETURN count(n.name) + count(r.isacl)"""
+    graph.run(warmupdbquery)
 
 def main():
     args = arguments()
@@ -443,16 +477,18 @@ def main():
     banner()
     graph = db_connect(args)
     starttime = datetime.now()
+    warmupdb(graph)
     if args.schema:
         schema(graph, args)
     cost(graph)
     bloodhound41patch(graph)
-    groupswithpath = shortestgrouppath(graph, starttime, args)
+    set_hv_for_dcsyncers(graph)
+    groupswithpath, userswithpath = shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = totalusers(graph)
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
     groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
     groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
-    userswithpath = shortestuserpath(graph)
+    #userswithpath = shortestuserpath(graph)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
     new_path, seen_before, scandatenice = db(results, graph, args)
