@@ -166,6 +166,99 @@ def getmaxcost(groupswithpath):
     maxcost = (max(maxhops))*3+1
     return maxcost
 
+def getdirectmembersnew(graph, group):
+    """takes group gets direct enabled, non-admin members gives [members]"""
+    logging.info(f"Finding direct members of {group}")
+    query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf]->(g:Group {name:"%s"}) return distinct(u.name) as members""" % group
+    group_members = graph.run(query_group_members).data()
+    if len(group_members) != 0:
+        members = []
+        for g in group_members:
+            m = g.get("members")
+            members.append(m)
+    else:
+        members = group_members
+    return members
+
+def getdirectgroupmembersnew(graph, group):
+    """takes group gets direct non-highvalue group members gives [groups]"""
+    logging.info(f"Finding direct group members of {group}")
+    query_group_members = """match (g:Group {highvalue:FALSE})-[:MemberOf]->(g1:Group {name:"%s"}) return distinct(g.name) as groupmembers""" % group
+    group_members = graph.run(query_group_members).data()
+    if len(group_members) != 0:
+        groups = []
+        for g in group_members:
+            m = g.get("groupmembers")
+            groups.append(m)
+    else:
+        groups = group_members
+    return groups
+
+def processgroups(graph, uniquegroupswithpath):
+    groupswithmembers = []
+    #start to process all groups with path
+    for startgroup in uniquegroupswithpath:
+        if not any(group["groupname"] == startgroup for group in groupswithmembers):
+            startgroupmembers = []
+            subgroupstobeprocessed = []
+            directmembers = getdirectmembersnew(graph, startgroup)
+            if len(directmembers) != 0:
+                for d in directmembers:
+                    if d not in startgroupmembers:
+                        startgroupmembers.append(d)
+            directgroups = getdirectgroupmembersnew(graph, startgroup)
+            if len(directgroups) != 0:
+                for g in directgroups:
+                    if not any(group["groupname"] == g for group in groupswithmembers):
+                        subgroupstobeprocessed.append(g)
+                        while len(subgroupstobeprocessed) != 0:
+                            nestedmembers, subgroupstobeprocessed = recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed)
+                            for n in nestedmembers:
+                                if n not in startgroupmembers:
+                                    startgroupmembers.append(n)
+                    else:
+                        # get the index of the group in processed groups
+                        groupswithmembersindex = getlistindex(groupswithmembers, "groupname", g)
+                        #groupswithmembersindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == "%s"), None) % g
+                        nestedmembers = groupswithmembers[groupswithmembersindex]['groupmembers']
+                        for n in nestedmembers:
+                            if n not in startgroupmembers:
+                                startgroupmembers.append(n)
+            #allgroupmembers = []
+            #for m in startgroupmembers:
+            #    if m not in allgroupmembers:
+            #        allgroupmembers.append(m)
+            startgroupdict = {"groupname":startgroup, "groupmembers":startgroupmembers}
+            groupswithmembers.append(startgroupdict)
+    return groupswithmembers
+
+def getlistindex(lst, key, value):
+    for index, dic in enumerate(lst):
+        if dic[key] == value:
+            return index
+
+def recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed):
+    if not any(group["groupname"] == subgroupstobeprocessed[0] for group in groupswithmembers):
+        subgroup = subgroupstobeprocessed[0]
+        members = []
+        subgroupmembers = getdirectmembersnew(graph, subgroup)
+        if len(subgroupmembers) != 0:
+            for m in subgroupmembers:
+                if m not in members:
+                    members.append(m)
+        subgroupgroupmembers = getdirectgroupmembersnew(graph, subgroup)
+        if len(subgroupgroupmembers) != 0:
+            for g in subgroupgroupmembers:
+                subgroupstobeprocessed.append(g)
+        subgroupstobeprocessed.pop(0)
+    else:
+       subgroup = subgroupstobeprocessed[0]
+       groupswithmembersindex = getlistindex(groupswithmembers, "groupname", subgroup)
+       #groupswithmembersindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == "%s"), None) % subgroup
+       members = groupswithmembers[groupswithmembersindex]['groupmembers']
+       subgroupstobeprocessed.pop(0)
+    return members, subgroupstobeprocessed
+
 def getdirectgroupmembers(graph, uniquegroupswithpath):
     """Gets a list of direct group members for every group with a path"""
     totalgroupswithpath = len(uniquegroupswithpath)
@@ -256,8 +349,10 @@ def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers
             logging.info(f"Null edge cost found with {startnode} and {hops} hops.")
             cost = 0
         # find the index of the relative group in groupswithmembers and pull results
-        groupindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == startnode), None)
-        num_members = len(groupswithmembers[groupindex]['combined'])
+        #groupindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == startnode), None)
+        groupswithmembersindex = getlistindex(groupswithmembers, "groupname", startnode)
+        num_members = len(groupswithmembers[groupswithmembersindex]['groupmembers'])
+        #num_members = len(groupswithmembers[groupindex]['combined'])
         percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
         riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
         result = [startnode, num_members, percentage, hops, cost, riskscore, fullpath, query, uid]
@@ -282,6 +377,20 @@ def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers
     return results
 
 def gettotaluniqueuserswithpath(groupswithmembers, userswithpath):
+    uniqueusers = []
+    for g in groupswithmembers:
+        members = g.get("groupmembers")
+        for m in members:
+            if m not in uniqueusers:
+                uniqueusers.append(m)
+    for u in userswithpath:
+        user = u.get("startnode")
+        if user not in uniqueusers:
+            uniqueusers.append(user)
+    totaluniqueuserswithpath = len(uniqueusers)
+    return totaluniqueuserswithpath       
+
+def gettotaluniqueuserswithpathold(groupswithmembers, userswithpath):
     uniqueusers=[]
     for g in groupswithmembers:
         members = g.get("combined")
@@ -492,8 +601,9 @@ def main():
     groupswithpath, userswithpath = shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = totalusers(graph)
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
-    groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
-    groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
+    groupswithmembers = processgroups(graph, uniquegroupswithpath)
+    #groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
+    #groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
     new_path, seen_before, scandatenice = db(results, graph, args)
