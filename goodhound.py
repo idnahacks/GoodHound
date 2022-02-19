@@ -64,6 +64,7 @@ def schema(graph, args):
 
 def bloodhound41patch(graph):
     """Bloodhound 4.1 doesn't automatically tag non highvalue items with the attribute."""
+    logging.info('Patching for Bloohound 4.1')
     hvpatch="""match (n:Base) where n.highvalue is NULL set n.highvalue = FALSE"""
     graph.run(hvpatch)
     return()
@@ -71,6 +72,7 @@ def bloodhound41patch(graph):
 def set_hv_for_dcsyncers(graph):
     """As DCSync ability is calculated in a different way to the regular shortest path query this function finds all principals that can perform a DCSync, and then looks at all principles that are members of High Value groups. Any DCSync principle that is not already in the highvalue list is then targetted to find out which non-highvalue groups can reach these nodes."""
     #This gets back a list of users that are members of highvalue groups. These will already have attack paths mapped with the main groupswithpath query and so don't need an extra check
+    logging.info('Searching for paths to targets that can perform a DCSync attack.')
     hvusersquery="""match (n)-[:MemberOf*1..]->(g:Group {highvalue:true}) with n as hv match (hv {highvalue:false}) return distinct(hv.name) as name"""
     hvusers=graph.run(hvusersquery).data()
     dcsyncusersquery="""MATCH (n1)-[:MemberOf|GetChanges*1..]->(u:Domain) WITH n1,u MATCH (n1)-[:MemberOf|GetChangesAll*1..]->(u) WITH n1,u MATCH p = (n1)-[:MemberOf|GetChanges|GetChangesAll*1..]->(u) RETURN distinct(n1.objectid) as sid, n1.name as name"""
@@ -107,7 +109,7 @@ def cost(graph):
     "MATCH (n)-[r:GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:GPO) SET r.cost = 1",
     "MATCH (n)-[r:GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite ]->(m:OU) SET r.cost = 1",
     "MATCH (n)-[r:AddKeyCredentialLink]->(m) set r.cost = 2"]
-    print("Setting cost.")
+    logging.info("Setting cost.")
     try:
         for c in cost:
             graph.run(c)
@@ -125,7 +127,7 @@ def shortestgrouppath(graph, starttime, args):
         query_shortestpath=f"%s" %args.query
     else:
         query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
-    print("Running query, this may take a while.")
+    print("Sniffing out attack paths from groups, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
     except:
@@ -138,13 +140,16 @@ def shortestgrouppath(graph, starttime, args):
         userswithpath=[]
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     logging.info("Finished group query in : {} Minutes".format(querytime))
+    if len(groupswithpath) and len(userswithpath) == 0:
+        print("You have no paths to high value targets. Congratulations!")
+        sys.exit(1)
     return groupswithpath, userswithpath
 
 def shortestuserpath(graph):
     """
     Runs a shortest path query for all users where the path does not involve a group membership. This is to catch any potential outliers.
     """
-    print("Running user query. This can also take some time.")
+    print("Digging for users with paths. This can also take some time.")
     userquerystarttime = datetime.now()
     query_shortestpath="""match p=shortestpath((u:User {highvalue:FALSE, enabled:TRUE})-[:HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, u.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, u.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
     userswithpath=graph.run(query_shortestpath).data()
@@ -196,6 +201,7 @@ def getdirectgroupmembersnew(graph, group):
     return groups
 
 def processgroups(graph, uniquegroupswithpath):
+    print("Fetching users of groups.")
     groupswithmembers = []
     #start to process all groups with path
     for startgroup in uniquegroupswithpath:
@@ -514,6 +520,7 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         busiestpathsdf.to_csv(busiestpathsname, index=False)
         weakest_linkdf.to_csv(weakestlinkname, index=False)
         print("CSV reports written to selected file path.")
+    print("Attack Paths sniffed out. Woof woof!")
 
 def getscandate(graph):
     """Find the date that the Sharphound collection was run based on the most recent lastlogondate timestamp of the Domain Controllers"""
