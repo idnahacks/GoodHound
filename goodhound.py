@@ -140,7 +140,7 @@ def shortestgrouppath(graph, starttime, args):
         userswithpath=[]
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     logging.info("Finished group query in : {} Minutes".format(querytime))
-    if len(groupswithpath) and len(userswithpath) == 0:
+    if (len(groupswithpath) + len(userswithpath)) == 0:
         print("You have no paths to high value targets. Congratulations!")
         sys.exit(1)
     return groupswithpath, userswithpath
