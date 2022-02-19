@@ -8,6 +8,7 @@ import logging
 from collections import Counter
 import sqlite3
 import hashlib
+import os
 
 def banner():
     print("""   ______                ____  __                      __""")
@@ -24,7 +25,7 @@ def arguments():
     parsegroupdb.add_argument("-s", "--server", default="bolt://localhost:7687", help="Neo4j server Default: bolt://localhost:7687)", type=str)
     parsegroupoutput = argparser.add_argument_group('Output Formats')
     parsegroupoutput.add_argument("-o", "--output-format", default="csv", help="Output formats supported: stdout, csv, md (markdown). Default: csv.", type=str, choices=["stdout", "csv", "md", "markdown"])
-    parsegroupoutput.add_argument("-f", "--output-filepath", default=".", help="File path to save the csv output. Defaults to current directory.", type=str)
+    parsegroupoutput.add_argument("-f", "--output-filepath", default=os.getcwd(), help="File path to save the csv output. Defaults to current directory.", type=str)
     parsegroupoutput.add_argument("-v", "--verbose", help="Enables verbose output.", action="store_true")
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
     parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
@@ -34,7 +35,7 @@ def arguments():
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
     parsegroupsql = argparser.add_argument_group('SQLite Database')
     parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
-    parsegroupsql.add_argument("-sqlpath", "--sql-path", default="goodhound.db", help="Sets the location of the SQLite Database", type=str)
+    parsegroupsql.add_argument("-sqlpath", "--sql-path", default=os.getcwd, help="Sets the file path of the SQLite Database file goodhound.db", type=str)
     args = argparser.parse_args()
     return args
 
@@ -538,7 +539,8 @@ def db(results, graph, args):
     	last_seen INTEGER NOT NULL);"""
         conn = None
         try:
-            conn = sqlite3.connect(args.sql_path)
+            db = args.sql_path + '\\goodhound.db'
+            conn = sqlite3.connect(db)
             c = conn.cursor()
             c.execute(table_sql)
             scandate, scandatenice = getscandate(graph)
