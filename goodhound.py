@@ -590,7 +590,7 @@ def db(results, graph, args):
     return new_path, seen_before, scandatenice
 
 def warmupdb(graph):
-    logging.info("Warming up database")
+    print("Warming up database")
     warmupdbquery = """MATCH (n) OPTIONAL MATCH (n)-[r]->() RETURN count(n.name) + count(r.isacl)"""
     graph.run(warmupdbquery)
 
