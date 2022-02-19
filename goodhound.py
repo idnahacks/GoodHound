@@ -64,7 +64,7 @@ def schema(graph, args):
 
 def bloodhound41patch(graph):
     """Bloodhound 4.1 doesn't automatically tag non highvalue items with the attribute."""
-    logging.info('Patching for Bloohound 4.1')
+    logging.info('Patching for Bloodhound 4.1')
     hvpatch="""match (n:Base) where n.highvalue is NULL set n.highvalue = FALSE"""
     graph.run(hvpatch)
     return()
