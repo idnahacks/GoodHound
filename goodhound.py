@@ -39,6 +39,10 @@ def arguments():
     args = argparser.parse_args()
     return args
 
+def getos():
+    os = sys.platform
+    return os
+
 def db_connect(args):
     logging.info('Connecting to database.')
     try:
@@ -126,7 +130,7 @@ def shortestgrouppath(graph, starttime, args):
     if args.query:
         query_shortestpath=f"%s" %args.query
     else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
+        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) where g.name starts with "ADMIN" with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
     print("Sniffing out attack paths from groups, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
@@ -218,8 +222,9 @@ def processgroups(graph, uniquegroupswithpath):
                 for g in directgroups:
                     if not any(group["groupname"] == g for group in groupswithmembers):
                         subgroupstobeprocessed.append(g)
+                        donotreprocessgroups = []
                         while len(subgroupstobeprocessed) != 0:
-                            nestedmembers, subgroupstobeprocessed = recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed)
+                            nestedmembers, subgroupstobeprocessed, donotreprocessgroups = recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed, donotreprocessgroups)
                             for n in nestedmembers:
                                 if n not in startgroupmembers:
                                     startgroupmembers.append(n)
@@ -244,27 +249,32 @@ def getlistindex(lst, key, value):
         if dic[key] == value:
             return index
 
-def recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed):
+def recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed, donotreprocessgroups):
     if not any(group["groupname"] == subgroupstobeprocessed[0] for group in groupswithmembers):
         subgroup = subgroupstobeprocessed[0]
         members = []
-        subgroupmembers = getdirectmembersnew(graph, subgroup)
-        if len(subgroupmembers) != 0:
-            for m in subgroupmembers:
-                if m not in members:
-                    members.append(m)
-        subgroupgroupmembers = getdirectgroupmembersnew(graph, subgroup)
-        if len(subgroupgroupmembers) != 0:
-            for g in subgroupgroupmembers:
-                subgroupstobeprocessed.append(g)
-        subgroupstobeprocessed.pop(0)
+        if subgroup not in donotreprocessgroups:
+            subgroupmembers = getdirectmembersnew(graph, subgroup)
+            if len(subgroupmembers) != 0:
+                for m in subgroupmembers:
+                    if m not in members:
+                        members.append(m)
+            subgroupgroupmembers = getdirectgroupmembersnew(graph, subgroup)
+            if len(subgroupgroupmembers) != 0:
+                for g in subgroupgroupmembers:
+                    subgroupstobeprocessed.append(g)
+            subgroupdone = subgroupstobeprocessed.pop(0)
+            donotreprocessgroups.append(subgroupdone)
+        if len(subgroupstobeprocessed) != 0:
+            subgroupstobeprocessed.pop(0)
     else:
        subgroup = subgroupstobeprocessed[0]
        groupswithmembersindex = getlistindex(groupswithmembers, "groupname", subgroup)
        #groupswithmembersindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == "%s"), None) % subgroup
        members = groupswithmembers[groupswithmembersindex]['groupmembers']
-       subgroupstobeprocessed.pop(0)
-    return members, subgroupstobeprocessed
+       subgroupdone = subgroupstobeprocessed.pop(0)
+       donotreprocessgroups.append(subgroupdone)
+    return members, subgroupstobeprocessed, donotreprocessgroups
 
 def getdirectgroupmembers(graph, uniquegroupswithpath):
     """Gets a list of direct group members for every group with a path"""
@@ -490,7 +500,7 @@ def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths,
     busiestpathsdf = pd.DataFrame(top_results, columns=["Starting Node", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
     return grandtotalsdf, weakest_linkdf, busiestpathsdf
 
-def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime):
+def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime, os):
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
     logging.info("Total runtime: {} minutes.".format(totalruntime))
@@ -513,9 +523,14 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         print("## THE WEAKEST LINKS")
         print (weakest_linkdf.to_markdown(index=False))
     else:
-        summaryname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_summary.csv"
-        busiestpathsname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
-        weakestlinkname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
+        if os == ("win32" or "cygwin"):
+            summaryname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_summary.csv"
+            busiestpathsname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
+            weakestlinkname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
+        else:
+            summaryname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_summary.csv"
+            busiestpathsname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
+            weakestlinkname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
         grandtotalsdf.to_csv(summaryname, index=False)
         busiestpathsdf.to_csv(busiestpathsname, index=False)
         weakest_linkdf.to_csv(weakestlinkname, index=False)
@@ -529,7 +544,7 @@ def getscandate(graph):
     scandatenice = (datetime.fromtimestamp(scandate)).strftime("%Y-%m-%d")
     return scandate, scandatenice
 
-def db(results, graph, args):
+def db(results, graph, args, os):
     """Inserts all of the attack paths found into a SQLite database"""
     if not args.db_skip:
         table_sql = """CREATE TABLE IF NOT EXISTS paths (
@@ -546,7 +561,10 @@ def db(results, graph, args):
     	last_seen INTEGER NOT NULL);"""
         conn = None
         try:
-            db = args.sql_path + '\\goodhound.db'
+            if os == ("win32" or "cygwin"):
+                db = args.sql_path + '\\goodhound.db'
+            else:
+                db = args.sql_path + '/goodhound.db'
             conn = sqlite3.connect(db)
             c = conn.cursor()
             c.execute(table_sql)
@@ -599,6 +617,7 @@ def main():
     if args.verbose:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
     banner()
+    os = getos()
     graph = db_connect(args)
     starttime = datetime.now()
     warmupdb(graph)
@@ -615,13 +634,13 @@ def main():
     #groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
-    new_path, seen_before, scandatenice = db(results, graph, args)
+    new_path, seen_before, scandatenice = db(results, graph, args, os)
     uniqueresults = getuniqueresults(results)
     top_results = sortresults(args, uniqueresults)
     totalpaths = len(groupswithpath+userswithpath)
     weakest_links = weakestlinks(groupswithpath, totalpaths, userswithpath)
     grandtotalsdf, weakest_linkdf, busiestpathsdf = grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths, new_path, seen_before, weakest_links, top_results)
-    output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime)
+    output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime, os)
 
 if __name__ == "__main__":
     main()
