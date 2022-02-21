@@ -8,6 +8,7 @@ import logging
 from collections import Counter
 import sqlite3
 import hashlib
+import os
 
 def banner():
     print("""   ______                ____  __                      __""")
@@ -24,7 +25,7 @@ def arguments():
     parsegroupdb.add_argument("-s", "--server", default="bolt://localhost:7687", help="Neo4j server Default: bolt://localhost:7687)", type=str)
     parsegroupoutput = argparser.add_argument_group('Output Formats')
     parsegroupoutput.add_argument("-o", "--output-format", default="csv", help="Output formats supported: stdout, csv, md (markdown). Default: csv.", type=str, choices=["stdout", "csv", "md", "markdown"])
-    parsegroupoutput.add_argument("-f", "--output-filepath", default=".", help="File path to save the csv output. Defaults to current directory.", type=str)
+    parsegroupoutput.add_argument("-f", "--output-filepath", default=os.getcwd(), help="File path to save the csv output. Defaults to current directory.", type=str)
     parsegroupoutput.add_argument("-v", "--verbose", help="Enables verbose output.", action="store_true")
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
     parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
@@ -34,9 +35,13 @@ def arguments():
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
     parsegroupsql = argparser.add_argument_group('SQLite Database')
     parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
-    parsegroupsql.add_argument("-sqlpath", "--sql-path", default="goodhound.db", help="Sets the location of the SQLite Database", type=str)
+    parsegroupsql.add_argument("-sqlpath", "--sql-path", default=os.getcwd, help="Sets the file path of the SQLite Database file goodhound.db", type=str)
     args = argparser.parse_args()
     return args
+
+def getos():
+    os = sys.platform
+    return os
 
 def db_connect(args):
     logging.info('Connecting to database.')
@@ -63,6 +68,7 @@ def schema(graph, args):
 
 def bloodhound41patch(graph):
     """Bloodhound 4.1 doesn't automatically tag non highvalue items with the attribute."""
+    logging.info('Patching for Bloodhound 4.1')
     hvpatch="""match (n:Base) where n.highvalue is NULL set n.highvalue = FALSE"""
     graph.run(hvpatch)
     return()
@@ -70,6 +76,7 @@ def bloodhound41patch(graph):
 def set_hv_for_dcsyncers(graph):
     """As DCSync ability is calculated in a different way to the regular shortest path query this function finds all principals that can perform a DCSync, and then looks at all principles that are members of High Value groups. Any DCSync principle that is not already in the highvalue list is then targetted to find out which non-highvalue groups can reach these nodes."""
     #This gets back a list of users that are members of highvalue groups. These will already have attack paths mapped with the main groupswithpath query and so don't need an extra check
+    logging.info('Searching for paths to targets that can perform a DCSync attack.')
     hvusersquery="""match (n)-[:MemberOf*1..]->(g:Group {highvalue:true}) with n as hv match (hv {highvalue:false}) return distinct(hv.name) as name"""
     hvusers=graph.run(hvusersquery).data()
     dcsyncusersquery="""MATCH (n1)-[:MemberOf|GetChanges*1..]->(u:Domain) WITH n1,u MATCH (n1)-[:MemberOf|GetChangesAll*1..]->(u) WITH n1,u MATCH p = (n1)-[:MemberOf|GetChanges|GetChangesAll*1..]->(u) RETURN distinct(n1.objectid) as sid, n1.name as name"""
@@ -106,7 +113,7 @@ def cost(graph):
     "MATCH (n)-[r:GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite]->(m:GPO) SET r.cost = 1",
     "MATCH (n)-[r:GenericAll|WriteDacl|WriteOwner|Owns|GenericWrite ]->(m:OU) SET r.cost = 1",
     "MATCH (n)-[r:AddKeyCredentialLink]->(m) set r.cost = 2"]
-    print("Setting cost.")
+    logging.info("Setting cost.")
     try:
         for c in cost:
             graph.run(c)
@@ -124,7 +131,7 @@ def shortestgrouppath(graph, starttime, args):
         query_shortestpath=f"%s" %args.query
     else:
         query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
-    print("Running query, this may take a while.")
+    print("Sniffing out attack paths from groups, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
     except:
@@ -137,13 +144,16 @@ def shortestgrouppath(graph, starttime, args):
         userswithpath=[]
     querytime = round((datetime.now()-starttime).total_seconds() / 60)
     logging.info("Finished group query in : {} Minutes".format(querytime))
+    if (len(groupswithpath) + len(userswithpath)) == 0:
+        print("You have no paths to high value targets. Congratulations!")
+        sys.exit(1)
     return groupswithpath, userswithpath
 
 def shortestuserpath(graph):
     """
     Runs a shortest path query for all users where the path does not involve a group membership. This is to catch any potential outliers.
     """
-    print("Running user query. This can also take some time.")
+    print("Digging for users with paths. This can also take some time.")
     userquerystarttime = datetime.now()
     query_shortestpath="""match p=shortestpath((u:User {highvalue:FALSE, enabled:TRUE})-[:HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, u.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, u.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
     userswithpath=graph.run(query_shortestpath).data()
@@ -165,6 +175,99 @@ def getmaxcost(groupswithpath):
         maxhops.append(sublist.get('hops'))
     maxcost = (max(maxhops))*3+1
     return maxcost
+
+def getdirectmembersnew(graph, group):
+    """takes group gets direct enabled, non-admin members gives [members]"""
+    logging.info(f"Finding direct members of {group}")
+    query_group_members = """match (u:User {highvalue:FALSE, enabled:TRUE})-[:MemberOf]->(g:Group {name:"%s"}) return distinct(u.name) as members""" % group
+    group_members = graph.run(query_group_members).data()
+    if len(group_members) != 0:
+        members = []
+        for g in group_members:
+            m = g.get("members")
+            members.append(m)
+    else:
+        members = group_members
+    return members
+
+def getdirectgroupmembersnew(graph, group):
+    """takes group gets direct non-highvalue group members gives [groups]"""
+    logging.info(f"Finding direct group members of {group}")
+    query_group_members = """match (g:Group {highvalue:FALSE})-[:MemberOf]->(g1:Group {name:"%s"}) return distinct(g.name) as groupmembers""" % group
+    group_members = graph.run(query_group_members).data()
+    if len(group_members) != 0:
+        groups = []
+        for g in group_members:
+            m = g.get("groupmembers")
+            groups.append(m)
+    else:
+        groups = group_members
+    return groups
+
+def processgroups(graph, uniquegroupswithpath):
+    print("Fetching users of groups.")
+    groupswithmembers = []
+    #start to process all groups with path
+    for startgroup in uniquegroupswithpath:
+        if not any(group["groupname"] == startgroup for group in groupswithmembers):
+            startgroupmembers = []
+            subgroupstobeprocessed = []
+            directmembers = getdirectmembersnew(graph, startgroup)
+            if len(directmembers) != 0:
+                for d in directmembers:
+                    if d not in startgroupmembers:
+                        startgroupmembers.append(d)
+            directgroups = getdirectgroupmembersnew(graph, startgroup)
+            if len(directgroups) != 0:
+                for g in directgroups:
+                    if not any(group["groupname"] == g for group in groupswithmembers):
+                        subgroupstobeprocessed.append(g)
+                        donotreprocessgroups = []
+                        while len(subgroupstobeprocessed) != 0:
+                            nestedmembers, subgroupstobeprocessed, donotreprocessgroups = recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed, donotreprocessgroups)
+                            for n in nestedmembers:
+                                if n not in startgroupmembers:
+                                    startgroupmembers.append(n)
+                    else:
+                        groupswithmembersindex = getlistindex(groupswithmembers, "groupname", g)
+                        nestedmembers = groupswithmembers[groupswithmembersindex]['groupmembers']
+                        for n in nestedmembers:
+                            if n not in startgroupmembers:
+                                startgroupmembers.append(n)
+            startgroupdict = {"groupname":startgroup, "groupmembers":startgroupmembers}
+            groupswithmembers.append(startgroupdict)
+    return groupswithmembers
+
+def getlistindex(lst, key, value):
+    for index, dic in enumerate(lst):
+        if dic[key] == value:
+            return index
+
+def recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed, donotreprocessgroups):
+    if not any(group["groupname"] == subgroupstobeprocessed[0] for group in groupswithmembers):
+        subgroup = subgroupstobeprocessed[0]
+        members = []
+        if subgroup not in donotreprocessgroups:
+            subgroupmembers = getdirectmembersnew(graph, subgroup)
+            if len(subgroupmembers) != 0:
+                for m in subgroupmembers:
+                    if m not in members:
+                        members.append(m)
+            subgroupgroupmembers = getdirectgroupmembersnew(graph, subgroup)
+            if len(subgroupgroupmembers) != 0:
+                for g in subgroupgroupmembers:
+                    subgroupstobeprocessed.append(g)
+            subgroupdone = subgroupstobeprocessed.pop(0)
+            donotreprocessgroups.append(subgroupdone)
+        if len(subgroupstobeprocessed) != 0:
+            subgroupstobeprocessed.pop(0)
+    else:
+       subgroup = subgroupstobeprocessed[0]
+       groupswithmembersindex = getlistindex(groupswithmembers, "groupname", subgroup)
+       members = groupswithmembers[groupswithmembersindex]['groupmembers']
+       subgroupdone = subgroupstobeprocessed.pop(0)
+       donotreprocessgroups.append(subgroupdone)
+    return members, subgroupstobeprocessed, donotreprocessgroups
 
 def getdirectgroupmembers(graph, uniquegroupswithpath):
     """Gets a list of direct group members for every group with a path"""
@@ -256,8 +359,10 @@ def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers
             logging.info(f"Null edge cost found with {startnode} and {hops} hops.")
             cost = 0
         # find the index of the relative group in groupswithmembers and pull results
-        groupindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == startnode), None)
-        num_members = len(groupswithmembers[groupindex]['combined'])
+        #groupindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == startnode), None)
+        groupswithmembersindex = getlistindex(groupswithmembers, "groupname", startnode)
+        num_members = len(groupswithmembers[groupswithmembersindex]['groupmembers'])
+        #num_members = len(groupswithmembers[groupindex]['combined'])
         percentage=round(float((num_members/totalenablednonadminusers)*100), 1)
         riskscore = round((((maxcost-cost)/maxcost)*percentage),1)
         result = [startnode, num_members, percentage, hops, cost, riskscore, fullpath, query, uid]
@@ -282,6 +387,20 @@ def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers
     return results
 
 def gettotaluniqueuserswithpath(groupswithmembers, userswithpath):
+    uniqueusers = []
+    for g in groupswithmembers:
+        members = g.get("groupmembers")
+        for m in members:
+            if m not in uniqueusers:
+                uniqueusers.append(m)
+    for u in userswithpath:
+        user = u.get("startnode")
+        if user not in uniqueusers:
+            uniqueusers.append(user)
+    totaluniqueuserswithpath = len(uniqueusers)
+    return totaluniqueuserswithpath       
+
+def gettotaluniqueuserswithpathold(groupswithmembers, userswithpath):
     uniqueusers=[]
     for g in groupswithmembers:
         members = g.get("combined")
@@ -374,7 +493,7 @@ def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths,
     busiestpathsdf = pd.DataFrame(top_results, columns=["Starting Node", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
     return grandtotalsdf, weakest_linkdf, busiestpathsdf
 
-def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime):
+def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime, os):
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
     logging.info("Total runtime: {} minutes.".format(totalruntime))
@@ -397,13 +516,19 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         print("## THE WEAKEST LINKS")
         print (weakest_linkdf.to_markdown(index=False))
     else:
-        summaryname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_summary.csv"
-        busiestpathsname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
-        weakestlinkname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
+        if os == ("win32" or "cygwin"):
+            summaryname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_summary.csv"
+            busiestpathsname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
+            weakestlinkname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
+        else:
+            summaryname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_summary.csv"
+            busiestpathsname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
+            weakestlinkname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
         grandtotalsdf.to_csv(summaryname, index=False)
         busiestpathsdf.to_csv(busiestpathsname, index=False)
         weakest_linkdf.to_csv(weakestlinkname, index=False)
         print("CSV reports written to selected file path.")
+    print("Attack Paths sniffed out. Woof woof!")
 
 def getscandate(graph):
     """Find the date that the Sharphound collection was run based on the most recent lastlogondate timestamp of the Domain Controllers"""
@@ -412,7 +537,7 @@ def getscandate(graph):
     scandatenice = (datetime.fromtimestamp(scandate)).strftime("%Y-%m-%d")
     return scandate, scandatenice
 
-def db(results, graph, args):
+def db(results, graph, args, os):
     """Inserts all of the attack paths found into a SQLite database"""
     if not args.db_skip:
         table_sql = """CREATE TABLE IF NOT EXISTS paths (
@@ -429,7 +554,11 @@ def db(results, graph, args):
     	last_seen INTEGER NOT NULL);"""
         conn = None
         try:
-            conn = sqlite3.connect(args.sql_path)
+            if os == ("win32" or "cygwin"):
+                db = args.sql_path + '\\goodhound.db'
+            else:
+                db = args.sql_path + '/goodhound.db'
+            conn = sqlite3.connect(db)
             c = conn.cursor()
             c.execute(table_sql)
             scandate, scandatenice = getscandate(graph)
@@ -472,7 +601,7 @@ def db(results, graph, args):
     return new_path, seen_before, scandatenice
 
 def warmupdb(graph):
-    logging.info("Warming up database")
+    print("Warming up database")
     warmupdbquery = """MATCH (n) OPTIONAL MATCH (n)-[r]->() RETURN count(n.name) + count(r.isacl)"""
     graph.run(warmupdbquery)
 
@@ -481,6 +610,7 @@ def main():
     if args.verbose:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
     banner()
+    os = getos()
     graph = db_connect(args)
     starttime = datetime.now()
     warmupdb(graph)
@@ -492,17 +622,16 @@ def main():
     groupswithpath, userswithpath = shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = totalusers(graph)
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
-    groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
-    groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
+    groupswithmembers = processgroups(graph, uniquegroupswithpath)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
-    new_path, seen_before, scandatenice = db(results, graph, args)
+    new_path, seen_before, scandatenice = db(results, graph, args, os)
     uniqueresults = getuniqueresults(results)
     top_results = sortresults(args, uniqueresults)
     totalpaths = len(groupswithpath+userswithpath)
     weakest_links = weakestlinks(groupswithpath, totalpaths, userswithpath)
     grandtotalsdf, weakest_linkdf, busiestpathsdf = grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths, new_path, seen_before, weakest_links, top_results)
-    output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime)
+    output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime, os)
 
 if __name__ == "__main__":
     main()
