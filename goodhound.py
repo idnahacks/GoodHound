@@ -229,17 +229,11 @@ def processgroups(graph, uniquegroupswithpath):
                                 if n not in startgroupmembers:
                                     startgroupmembers.append(n)
                     else:
-                        # get the index of the group in processed groups
                         groupswithmembersindex = getlistindex(groupswithmembers, "groupname", g)
-                        #groupswithmembersindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == "%s"), None) % g
                         nestedmembers = groupswithmembers[groupswithmembersindex]['groupmembers']
                         for n in nestedmembers:
                             if n not in startgroupmembers:
                                 startgroupmembers.append(n)
-            #allgroupmembers = []
-            #for m in startgroupmembers:
-            #    if m not in allgroupmembers:
-            #        allgroupmembers.append(m)
             startgroupdict = {"groupname":startgroup, "groupmembers":startgroupmembers}
             groupswithmembers.append(startgroupdict)
     return groupswithmembers
@@ -270,7 +264,6 @@ def recursivegroupsearch(graph, groupswithmembers, subgroupstobeprocessed, donot
     else:
        subgroup = subgroupstobeprocessed[0]
        groupswithmembersindex = getlistindex(groupswithmembers, "groupname", subgroup)
-       #groupswithmembersindex = next((index for (index, groupname) in enumerate(groupswithmembers) if groupname["groupname"] == "%s"), None) % subgroup
        members = groupswithmembers[groupswithmembersindex]['groupmembers']
        subgroupdone = subgroupstobeprocessed.pop(0)
        donotreprocessgroups.append(subgroupdone)
@@ -630,8 +623,6 @@ def main():
     totalenablednonadminusers = totalusers(graph)
     uniquegroupswithpath = getuniquegroupswithpath(groupswithpath)
     groupswithmembers = processgroups(graph, uniquegroupswithpath)
-    #groupswithmembers = getdirectgroupmembers(graph, uniquegroupswithpath)
-    #groupswithmembers = getindirectgroupmembers(graph, groupswithmembers)
     totaluniqueuserswithpath = gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
     new_path, seen_before, scandatenice = db(results, graph, args, os)
