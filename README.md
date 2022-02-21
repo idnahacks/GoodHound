@@ -27,6 +27,8 @@ python goodhound.py -p "neo4jpassword" -o csv -f .
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
+![Demo](images/demo.gif)
+
 
 ### Default behaviour
 
