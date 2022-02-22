@@ -39,7 +39,7 @@ def main():
     if args.schema:
         neodb.schema(graph, args)
     neodb.cost(graph)
-    if args.pathch41:
+    if args.patch41:
         neodb.bloodhound41patch(graph)
     neodb.set_hv_for_dcsyncers(graph)
     groupswithpath, userswithpath = paths.shortestgrouppath(graph, starttime, args)
