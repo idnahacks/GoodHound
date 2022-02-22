@@ -1,4 +1,5 @@
 from datetime import datetime
+from email import message
 import logging
 import sys
 from py2neo import Graph
@@ -9,8 +10,9 @@ def db_connect(args):
     try:
         graph = Graph(args.server, user=args.username, password=args.password)
         return graph    
-    except:
+    except Exception as e:
         logging.error("Database connection failure.")
+        logging.error(e.__context__)
         sys.exit(1)
 
 def schema(graph, args):
