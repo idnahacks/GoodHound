@@ -69,7 +69,10 @@ The weakest links report is a way to potentially find links of attack paths that
 - md or markdown to display a markdown formatted output  
 
 -f an optional filepath for the csv output option  
--v enables verbose output to display query times
+
+-q supresses all output  
+-v enables verbose output  
+--debug enables debug output  
 
 By default the output is csv in the current working directory.
 
@@ -86,11 +89,7 @@ For example, you want to add the highvalue label to 'dbserver01' because it cont
 ```
 match (c:Computer {name:'DBSERVER01@YOURDOMAIN.LOCAL'}) set c.highvalue=TRUE
 ```
-The schema can contain multiple queries, each on a separate line.
-
-### Query
--q can be used to override the default query that is run to calculate the busiest path. This is largely for debugging the script if your dataset is large and you want to temporarily load in a query that looks at a smaller set of your data in order to quickly try GoodHound out.  
-Care should be taken to ensure that the query provides output in the same way as the built-in query, so it doesn't stop any other part of GoodHound running.  
+The schema can contain multiple queries, each on a separate line. 
 
 ### SQLite Database
 By default Goodhound stores all attack paths in a SQLite database called goodhound.db stored in the local directory. This gives the opportunity to query attack paths over time.  

@@ -1,4 +1,5 @@
 import argparse
+from distutils.log import debug
 import os
 import logging
 from datetime import datetime
@@ -13,11 +14,12 @@ def arguments():
     parsegroupoutput = argparser.add_argument_group('Output Formats')
     parsegroupoutput.add_argument("-o", "--output-format", default="csv", help="Output formats supported: stdout, csv, md (markdown). Default: csv.", type=str, choices=["stdout", "csv", "md", "markdown"])
     parsegroupoutput.add_argument("-f", "--output-filepath", default=os.getcwd(), help="File path to save the csv output. Defaults to current directory.", type=str)
-    parsegroupoutput.add_argument("-v", "--verbose", help="Enables verbose output.", action="store_true")
+    parsegroupoutput.add_argument("-q", "--quiet", help="Mutes all output.", action="store_true")
+    parsegroupoutput.add_argument("-v", "--verbose", help="Enables informational output.", action="store_true")
+    parsegroupoutput.add_argument("--debug", help="Enables debug logging.", action="store_true")
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
     parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
     parsegroupqueryparams.add_argument("-sort", "--sort", default="risk", help="Option to sort results by number of users with the path, number of hops or risk score. Default: Risk Score", type=str, choices=["users", "hops", "risk"])
-    parsegroupqueryparams.add_argument("-q", "--query", help="Optionally add a custom query to replace the default busiest paths query. This can be used to run a query that perhaps does not take as long as the full run. The format should maintain the 'match p=shortestpath((g:Group)-[]->(n)) return distinct(g.name) as groupname, min(length(p)) as hops' structure so that it doesn't derp up the rest of the script. e.g. 'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops'", type=str)
     parsegroupschema = argparser.add_argument_group('Schema')
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
     parsegroupschema.add_argument("--patch41", help="A temporary option to patch a bug in Bloodhound 4.1 relating to the highvalue attribute.", action="store_true")
@@ -29,13 +31,19 @@ def arguments():
 
 def main():
     args = arguments()
-    if args.verbose:
+    if args.quiet:
+        logging.basicConfig(level=logging.CRITICAL)
+    elif args.debug:
+        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+    elif args.verbose:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-    ghutils.banner()
+    
+    if not args.quiet:    
+        ghutils.banner()
     os = ghutils.getos()
     graph = neodb.db_connect(args)
     starttime = datetime.now()
-    neodb.warmupdb(graph)
+    neodb.warmupdb(graph, args)
     if args.schema:
         neodb.schema(graph, args)
     neodb.cost(graph)
@@ -45,7 +53,7 @@ def main():
     groupswithpath, userswithpath = paths.shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = neodb.totalusers(graph)
     uniquegroupswithpath = paths.getuniquegroupswithpath(groupswithpath)
-    groupswithmembers = paths.processgroups(graph, uniquegroupswithpath)
+    groupswithmembers = paths.processgroups(graph, uniquegroupswithpath, args)
     totaluniqueuserswithpath = paths.gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = ghresults.generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
     new_path, seen_before, scandatenice = sqldb.db(results, graph, args, os)

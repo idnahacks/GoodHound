@@ -10,7 +10,7 @@ def db_connect(args):
         graph = Graph(args.server, user=args.username, password=args.password)
         return graph    
     except:
-        logging.warning("Database connection failure.")
+        logging.error("Database connection failure.")
         sys.exit(1)
 
 def schema(graph, args):
@@ -85,7 +85,8 @@ def getscandate(graph):
     scandatenice = (datetime.fromtimestamp(scandate)).strftime("%Y-%m-%d")
     return scandate, scandatenice
 
-def warmupdb(graph):
-    print("Warming up database")
+def warmupdb(graph, args):
+    if not args.quiet:
+        print("Warming up database")
     warmupdbquery = """MATCH (n) OPTIONAL MATCH (n)-[r]->() RETURN count(n.name) + count(r.isacl)"""
     graph.run(warmupdbquery)

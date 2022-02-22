@@ -16,11 +16,9 @@ def shortestgrouppath(graph, starttime, args):
     Runs a shortest path query for all AD groups to high value targets. Returns a list of groups.
     Respect to the Plumhound project https://github.com/PlumHound/PlumHound and BloodhoundGang Slack channel https://bloodhoundhq.slack.com for the influence and assistance with this.
     """
-    if args.query:
-        query_shortestpath=f"%s" %args.query
-    else:
-        query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
-    print("Sniffing out attack paths from groups, this may take a while.")
+    query_shortestpath="""match p=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, g.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, g.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
+    if not args.quiet:
+        print("Sniffing out attack paths from groups, this may take a while.")
     try:
         groupswithpath=graph.run(query_shortestpath).data()
     except:
@@ -38,9 +36,10 @@ def shortestgrouppath(graph, starttime, args):
         exit(1)
     return groupswithpath, userswithpath
 
-def shortestuserpath(graph):
+def shortestuserpath(graph, args):
     """Runs a shortest path query for all users where the path does not involve a group membership. This is to catch any potential outliers."""
-    print("Digging for users with paths. This can also take some time.")
+    if not args.quiet:
+        print("Digging for users with paths. This can also take some time.")
     userquerystarttime = datetime.now()
     query_shortestpath="""match p=shortestpath((u:User {highvalue:FALSE, enabled:TRUE})-[:HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n {highvalue:TRUE})) with reduce(totalscore = 0, rels in relationships(p) | totalscore + rels.cost) as cost, length(p) as hops, u.name as startnode, [node in nodes(p) | coalesce(node.name, "")] as nodeLabels, [rel in relationships(p) | type(rel)] as relationshipLabels, u.objectid as SID with reduce(path="", x in range(0,hops-1) | path + nodeLabels[x] + " - " + relationshipLabels[x] + " -> ") as path, nodeLabels[hops] as final_node, hops as hops, startnode as startnode, cost as cost, nodeLabels as nodeLabels, relationshipLabels as relLabels, SID as SID return startnode, hops, min(cost) as cost, nodeLabels, relLabels, path + final_node as full_path, SID as SID"""
     userswithpath=graph.run(query_shortestpath).data()
@@ -85,8 +84,9 @@ def getdirectgroupmembers(graph, group):
         groups = group_members
     return groups
 
-def processgroups(graph, uniquegroupswithpath):
-    print("Fetching users of groups.")
+def processgroups(graph, uniquegroupswithpath, args):
+    if not args.quiet:
+        print("Fetching users of groups.")
     groupswithmembers = []
     #start to process all groups with path
     for startgroup in uniquegroupswithpath:

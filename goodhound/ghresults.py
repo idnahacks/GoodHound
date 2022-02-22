@@ -135,5 +135,6 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         grandtotalsdf.to_csv(summaryname, index=False)
         busiestpathsdf.to_csv(busiestpathsname, index=False)
         weakest_linkdf.to_csv(weakestlinkname, index=False)
+    if not args.quiet:
         print("CSV reports written to selected file path.")
-    print("Attack Paths sniffed out. Woof woof!")
+        print("Attack Paths sniffed out. Woof woof!")
