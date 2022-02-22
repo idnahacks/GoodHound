@@ -20,6 +20,7 @@ def arguments():
     parsegroupqueryparams.add_argument("-q", "--query", help="Optionally add a custom query to replace the default busiest paths query. This can be used to run a query that perhaps does not take as long as the full run. The format should maintain the 'match p=shortestpath((g:Group)-[]->(n)) return distinct(g.name) as groupname, min(length(p)) as hops' structure so that it doesn't derp up the rest of the script. e.g. 'match p=shortestpath((g:Group {highvalue:FALSE})-[*1..]->(n {highvalue:TRUE})) WHERE tolower(g.name) =~ 'admin.*' return distinct(g.name) as groupname, min(length(p)) as hops'", type=str)
     parsegroupschema = argparser.add_argument_group('Schema')
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
+    parsegroupschema.add_argument("--patch41", help="A temporary option to patch a bug in Bloodhound 4.1 relating to the highvalue attribute.", action="store_true")
     parsegroupsql = argparser.add_argument_group('SQLite Database')
     parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
     parsegroupsql.add_argument("-sqlpath", "--sql-path", default=os.getcwd(), help="Sets the file path of the SQLite Database file goodhound.db", type=str)
@@ -38,7 +39,8 @@ def main():
     if args.schema:
         neodb.schema(graph, args)
     neodb.cost(graph)
-    neodb.bloodhound41patch(graph)
+    if args.pathch41:
+        neodb.bloodhound41patch(graph)
     neodb.set_hv_for_dcsyncers(graph)
     groupswithpath, userswithpath = paths.shortestgrouppath(graph, starttime, args)
     totalenablednonadminusers = neodb.totalusers(graph)
