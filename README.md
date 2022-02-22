@@ -23,7 +23,7 @@ For a very quick start with most of the default options, make sure you have your
 git clone https://github.com/idnahacks/GoodHound.git
 cd GoodHound
 pip install -r requirements.txt
-python goodhound.py -p "neo4jpassword" -o csv -f .
+python goodhound.py -p "neo4jpassword"
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
@@ -68,13 +68,13 @@ The weakest links report is a way to potentially find links of attack paths that
 - csv saves a comma separated values file for use with reporting or MI (completing the graphs, actions, charts trifecta in the tagline)
 - md or markdown to display a markdown formatted output  
 
--f an optional filepath for the csv output option  
+-d an optional filepathdirectory path for the csv output option 
+
+By default the output is csv in the current working directory.
 
 -q supresses all output  
 -v enables verbose output  
 --debug enables debug output  
-
-By default the output is csv in the current working directory.
 
 ### Number of results
 -r can be used to select the amount of results to show. By default the top 5 busiest paths are displayed.  
