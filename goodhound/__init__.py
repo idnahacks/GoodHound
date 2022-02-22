@@ -1,5 +1,6 @@
 import argparse
 import os
+from sys import exit
 import logging
 from datetime import datetime
 from goodhound import ghresults, sqldb, ghutils, paths, neodb
@@ -12,7 +13,7 @@ def arguments():
     parsegroupdb.add_argument("-s", "--server", default="bolt://localhost:7687", help="Neo4j server Default: bolt://localhost:7687)", type=str)
     parsegroupoutput = argparser.add_argument_group('Output Formats')
     parsegroupoutput.add_argument("-o", "--output-format", default="csv", help="Output formats supported: stdout, csv, md (markdown). Default: csv.", type=str, choices=["stdout", "csv", "md", "markdown"])
-    parsegroupoutput.add_argument("-f", "--output-filepath", default=os.getcwd(), help="File path to save the csv output. Defaults to current directory.", type=str)
+    parsegroupoutput.add_argument("-d", "--output-dir", default=os.getcwd(), help="Directory to save the output. Defaults to current directory.", type=str)
     parsegroupoutput.add_argument("-q", "--quiet", help="Mutes all output.", action="store_true")
     parsegroupoutput.add_argument("-v", "--verbose", help="Enables informational output.", action="store_true")
     parsegroupoutput.add_argument("--debug", help="Enables debug logging.", action="store_true")
@@ -36,7 +37,7 @@ def main():
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     elif args.verbose:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-
+    ghutils.checkoutdir(args.output_dir)
     if not args.quiet:    
         ghutils.banner()
     os = ghutils.getos()

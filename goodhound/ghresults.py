@@ -127,9 +127,9 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         print("## THE WEAKEST LINKS")
         print (weakest_linkdf.to_markdown(index=False))
     else:
-        summaryname = str(Path(args.output_filepath)) + os.sep + f"{scandatenice}" + "_GoodHound_summary.csv"
-        busiestpathsname = str(Path(args.output_filepath)) + os.sep + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
-        weakestlinkname = str(Path(args.output_filepath)) + os.sep + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
+        summaryname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_summary.csv"
+        busiestpathsname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
+        weakestlinkname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
         outfiles = [summaryname, busiestpathsname, weakestlinkname]
         i = 0
         for f in outfiles:
