@@ -1,5 +1,4 @@
 from datetime import datetime
-from email import message
 import logging
 import sys
 from py2neo import Graph

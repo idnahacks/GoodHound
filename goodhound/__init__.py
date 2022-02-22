@@ -1,5 +1,4 @@
 import argparse
-from distutils.log import debug
 import os
 import logging
 from datetime import datetime
@@ -37,7 +36,7 @@ def main():
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     elif args.verbose:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-    
+
     if not args.quiet:    
         ghutils.banner()
     os = ghutils.getos()
@@ -62,7 +61,7 @@ def main():
     totalpaths = len(groupswithpath+userswithpath)
     weakest_links = paths.weakestlinks(groupswithpath, totalpaths, userswithpath)
     grandtotalsdf, weakest_linkdf, busiestpathsdf = ghresults.grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths, new_path, seen_before, weakest_links, top_results)
-    ghresults.output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime, os)
+    ghresults.output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime)
 
 if __name__ == "__main__":
     main()

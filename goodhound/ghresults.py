@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime
 import logging
 import hashlib
+import sys
+from pathlib import Path
+import os
 
 def generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath):
     """combine the output of the paths query and the groups query"""
@@ -101,7 +104,7 @@ def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths,
     busiestpathsdf = pd.DataFrame(top_results, columns=["Starting Node", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
     return grandtotalsdf, weakest_linkdf, busiestpathsdf
 
-def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime, os):
+def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime):
     finish = datetime.now()
     totalruntime = round((finish - starttime).total_seconds() / 60)
     logging.info("Total runtime: {} minutes.".format(totalruntime))
@@ -124,17 +127,28 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         print("## THE WEAKEST LINKS")
         print (weakest_linkdf.to_markdown(index=False))
     else:
-        if os == ("win32" or "cygwin"):
-            summaryname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_summary.csv"
-            busiestpathsname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
-            weakestlinkname = f"{args.output_filepath}\\" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
-        else:
-            summaryname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_summary.csv"
-            busiestpathsname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
-            weakestlinkname = f"{args.output_filepath}/" + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
-        grandtotalsdf.to_csv(summaryname, index=False)
-        busiestpathsdf.to_csv(busiestpathsname, index=False)
-        weakest_linkdf.to_csv(weakestlinkname, index=False)
+        summaryname = str(Path(args.output_filepath)) + os.sep + f"{scandatenice}" + "_GoodHound_summary.csv"
+        busiestpathsname = str(Path(args.output_filepath)) + os.sep + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
+        weakestlinkname = str(Path(args.output_filepath)) + os.sep + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
+        outfiles = [summaryname, busiestpathsname, weakestlinkname]
+        i = 0
+        for f in outfiles:
+            outfiles[i] = ghutils.checkifoutfileexists(f)
+            i += 1
+        summaryname = outfiles[0]
+        busiestpathsname = outfiles[1]
+        weakestlinkname = outfiles[2]
+        
+        try:
+            grandtotalsdf.to_csv(summaryname, index=False)
+            busiestpathsdf.to_csv(busiestpathsname, index=False)
+            weakest_linkdf.to_csv(weakestlinkname, index=False)
+        except Exception as e:
+            logging.error("Could not write file to location.")
+            logging.error(e.__context__)
+            sys.exit(1)
+
     if not args.quiet:
         print("CSV reports written to selected file path.")
         print("Attack Paths sniffed out. Woof woof!")
+
