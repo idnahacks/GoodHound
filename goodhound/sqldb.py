@@ -21,10 +21,6 @@ def db(results, graph, args):
     	last_seen INTEGER NOT NULL);"""
         conn = None
         try:
-            #if os == ("win32" or "cygwin"):
-            #    db = args.sql_path + '\\goodhound.db'
-            #else:
-            #    db = args.sql_path + '/goodhound.db'
             db = str(Path(args.sql_path)) + os.sep + 'goodhound.db'
             conn = sqlite3.connect(db)
             c = conn.cursor()
