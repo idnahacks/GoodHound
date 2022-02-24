@@ -1,5 +1,5 @@
 import argparse
-import os
+from os import getcwd
 from sys import exit
 import logging
 from datetime import datetime
@@ -13,7 +13,7 @@ def arguments():
     parsegroupdb.add_argument("-s", "--server", default="bolt://localhost:7687", help="Neo4j server Default: bolt://localhost:7687)", type=str)
     parsegroupoutput = argparser.add_argument_group('Output Formats')
     parsegroupoutput.add_argument("-o", "--output-format", default="csv", help="Output formats supported: stdout, csv, md (markdown). Default: csv.", type=str, choices=["stdout", "csv", "md", "markdown"])
-    parsegroupoutput.add_argument("-d", "--output-dir", default=os.getcwd(), help="Directory to save the output. Defaults to current directory.", type=str)
+    parsegroupoutput.add_argument("-d", "--output-dir", default=getcwd(), help="Directory to save the output. Defaults to current directory.", type=str)
     parsegroupoutput.add_argument("-q", "--quiet", help="Mutes all output.", action="store_true")
     parsegroupoutput.add_argument("-v", "--verbose", help="Enables informational output.", action="store_true")
     parsegroupoutput.add_argument("--debug", help="Enables debug logging.", action="store_true")
@@ -25,7 +25,7 @@ def arguments():
     parsegroupschema.add_argument("--patch41", help="A temporary option to patch a bug in Bloodhound 4.1 relating to the highvalue attribute.", action="store_true")
     parsegroupsql = argparser.add_argument_group('SQLite Database')
     parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
-    parsegroupsql.add_argument("-sqlpath", "--sql-path", default=os.getcwd(), help="Sets the file path of the SQLite Database file goodhound.db", type=str)
+    parsegroupsql.add_argument("-sqlpath", "--sql-path", default=getcwd(), help="Sets the file path of the SQLite Database file goodhound.db", type=str)
     args = argparser.parse_args()
     return args
 
@@ -40,7 +40,6 @@ def main():
     ghutils.checkoutdir(args.output_dir)
     if not args.quiet:    
         ghutils.banner()
-    os = ghutils.getos()
     graph = neodb.db_connect(args)
     starttime = datetime.now()
     neodb.warmupdb(graph, args)
@@ -56,7 +55,7 @@ def main():
     groupswithmembers = paths.processgroups(graph, uniquegroupswithpath, args)
     totaluniqueuserswithpath = paths.gettotaluniqueuserswithpath(groupswithmembers, userswithpath)
     results = ghresults.generateresults(groupswithpath, groupswithmembers, totalenablednonadminusers, userswithpath)
-    new_path, seen_before, scandatenice = sqldb.db(results, graph, args, os)
+    new_path, seen_before, scandatenice = sqldb.db(results, graph, args)
     uniqueresults = ghresults.getuniqueresults(results)
     top_results = ghresults.sortresults(args, uniqueresults)
     totalpaths = len(groupswithpath+userswithpath)
