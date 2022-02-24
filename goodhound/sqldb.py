@@ -1,8 +1,10 @@
 from goodhound import neodb
 from sqlite3.dbapi2 import Error
 import sqlite3
+from pathlib import Path
+import os
 
-def db(results, graph, args, os):
+def db(results, graph, args):
     """Inserts all of the attack paths found into a SQLite database"""
     if not args.db_skip:
         table_sql = """CREATE TABLE IF NOT EXISTS paths (
@@ -19,10 +21,11 @@ def db(results, graph, args, os):
     	last_seen INTEGER NOT NULL);"""
         conn = None
         try:
-            if os == ("win32" or "cygwin"):
-                db = args.sql_path + '\\goodhound.db'
-            else:
-                db = args.sql_path + '/goodhound.db'
+            #if os == ("win32" or "cygwin"):
+            #    db = args.sql_path + '\\goodhound.db'
+            #else:
+            #    db = args.sql_path + '/goodhound.db'
+            db = str(Path(args.sql_path)) + os.sep + 'goodhound.db'
             conn = sqlite3.connect(db)
             c = conn.cursor()
             c.execute(table_sql)
