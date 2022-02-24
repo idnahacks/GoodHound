@@ -9,3 +9,4 @@
 - Add error handling to file output
 - change parameter for output dir to -d as this made more sense
 - remove custom query option as it could just end up messy
+- switch to pathlib for determining filepaths
