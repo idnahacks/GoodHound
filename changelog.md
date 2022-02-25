@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0
+- Upload to Pypi and update installation docs
+
 ## 0.8
 - Restructure files to follow pypi structure
 - Make BloodHound 4.1 patch optional

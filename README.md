@@ -20,15 +20,28 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 ### Quick Start
 For a very quick start with most of the default options, make sure you have your neo4j server running and loaded with SharpHound data and run:
 ```
-git clone https://github.com/idnahacks/GoodHound.git
-cd GoodHound
-pip install -r requirements.txt
-python -m goodhound -p "neo4jpassword"
+pip install goodhound
+goodhound -p "neo4jpassword"
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
 ![Demo](images/demo.gif)
 
+## Installation
+
+### Pre-requisites
+- Python and pip already installed.
+- Both neo4j and bloodhound will need to be already installed. The docs at https://bloodhound.readthedocs.io/en/latest/#install explain this well.
+
+### Using Pip
+Use pip to install directly from the PyPi library, if you do not wish to change any local modules you already have installed it is recommended to use pipenv:  
+```
+pip install goodhound
+```
+This will create a 'goodhound' entrypoint that you can call from the CLI:  
+```
+goodhound -h
+```
 
 ### Default behaviour
 
@@ -102,29 +115,6 @@ Larger datasets can take time to process.
 GoodHound does "warm-up" the database using the same query that the Warm-Up Database option in the Bloodhound GUI does, however the Neo4j documentation suggests that this is no longer necessary, and in practice I haven't seen it make any different on Neo4j 4.0 and greater.  
 There are also many guides for tuning the neo4j database for increased performance which are out of scope here (although if I make any significant improvements I'll document the findings).
 
-## Installation
-
-### Pre-requisites
-- Python and pip already installed.
-- Both neo4j and bloodhound will need to be already installed. The docs at https://bloodhound.readthedocs.io/en/latest/#install explain this well.
-
-### Downloading GoodHound
-Either download using git or by downloading the zip file and extract to your chosen location.
-```
-git clone https://github.com/idnahacks/GoodHound.git
-cd goodhound
-```
-__OR__
-```
-https://github.com/idnahacks/GoodHound/archive/refs/heads/main.zip
-```
-
-### Installing
-- Install required Python modules.  
-- Goodhound will install py2neo and pandas libraries, if you do not wish to change any local modules you already have installed it is recommended to use pipenv.  
-```
-pip install -r requirements.txt
-```
 
 ## SQLite Database
 By default Goodhound will insert all of attack paths that it finds into a local SQLite database located in a db directory inside the current working directory.  
