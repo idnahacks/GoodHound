@@ -1,5 +1,5 @@
 # GoodHound
-
+![PyPI - Downloads](https://img.shields.io/pypi/dm/goodhound)
 ```
    ______                ____  __                      __
   / ____/___  ____  ____/ / / / /___  __  ______  ____/ /
@@ -20,15 +20,28 @@ GoodHound operationalises Bloodhound by determining the busiest paths to high va
 ### Quick Start
 For a very quick start with most of the default options, make sure you have your neo4j server running and loaded with SharpHound data and run:
 ```
-git clone https://github.com/idnahacks/GoodHound.git
-cd GoodHound
-pip install -r requirements.txt
-python goodhound.py -p "neo4jpassword" -o csv -f .
+pip install goodhound
+goodhound -p "neo4jpassword"
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
 ![Demo](images/demo.gif)
 
+## Installation
+
+### Pre-requisites
+- Python and pip already installed.
+- Both neo4j and bloodhound will need to be already installed. The docs at https://bloodhound.readthedocs.io/en/latest/#install explain this well.
+
+### Using Pip
+Use pip to install directly from the PyPi library, if you do not wish to change any local modules you already have installed it is recommended to use pipenv:  
+```
+pip install goodhound
+```
+This will create a 'goodhound' entrypoint that you can call from the CLI:  
+```
+goodhound -h
+```
 
 ### Default behaviour
 
@@ -68,10 +81,13 @@ The weakest links report is a way to potentially find links of attack paths that
 - csv saves a comma separated values file for use with reporting or MI (completing the graphs, actions, charts trifecta in the tagline)
 - md or markdown to display a markdown formatted output  
 
--f an optional filepath for the csv output option  
--v enables verbose output to display query times
+-d an optional filepathdirectory path for the csv output option 
 
 By default the output is csv in the current working directory.
+
+-q supresses all output  
+-v enables verbose output  
+--debug enables debug output  
 
 ### Number of results
 -r can be used to select the amount of results to show. By default the top 5 busiest paths are displayed.  
@@ -86,11 +102,7 @@ For example, you want to add the highvalue label to 'dbserver01' because it cont
 ```
 match (c:Computer {name:'DBSERVER01@YOURDOMAIN.LOCAL'}) set c.highvalue=TRUE
 ```
-The schema can contain multiple queries, each on a separate line.
-
-### Query
--q can be used to override the default query that is run to calculate the busiest path. This is largely for debugging the script if your dataset is large and you want to temporarily load in a query that looks at a smaller set of your data in order to quickly try GoodHound out.  
-Care should be taken to ensure that the query provides output in the same way as the built-in query, so it doesn't stop any other part of GoodHound running.  
+The schema can contain multiple queries, each on a separate line. 
 
 ### SQLite Database
 By default Goodhound stores all attack paths in a SQLite database called goodhound.db stored in the local directory. This gives the opportunity to query attack paths over time.  
@@ -103,29 +115,6 @@ Larger datasets can take time to process.
 GoodHound does "warm-up" the database using the same query that the Warm-Up Database option in the Bloodhound GUI does, however the Neo4j documentation suggests that this is no longer necessary, and in practice I haven't seen it make any different on Neo4j 4.0 and greater.  
 There are also many guides for tuning the neo4j database for increased performance which are out of scope here (although if I make any significant improvements I'll document the findings).
 
-## Installation
-
-### Pre-requisites
-- Python and pip already installed.
-- Both neo4j and bloodhound will need to be already installed. The docs at https://bloodhound.readthedocs.io/en/latest/#install explain this well.
-
-### Downloading GoodHound
-Either download using git or by downloading the zip file and extract to your chosen location.
-```
-git clone https://github.com/idnahacks/GoodHound.git
-cd goodhound
-```
-__OR__
-```
-https://github.com/idnahacks/GoodHound/archive/refs/heads/main.zip
-```
-
-### Installing
-- Install required Python modules.  
-- Goodhound will install py2neo and pandas libraries, if you do not wish to change any local modules you already have installed it is recommended to use pipenv.  
-```
-pip install -r requirements.txt
-```
 
 ## SQLite Database
 By default Goodhound will insert all of attack paths that it finds into a local SQLite database located in a db directory inside the current working directory.  
