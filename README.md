@@ -1,5 +1,5 @@
 # GoodHound
-
+![PyPI - Downloads](https://img.shields.io/pypi/dm/goodhound)
 ```
    ______                ____  __                      __
   / ____/___  ____  ____/ / / / /___  __  ______  ____/ /
@@ -23,7 +23,7 @@ For a very quick start with most of the default options, make sure you have your
 git clone https://github.com/idnahacks/GoodHound.git
 cd GoodHound
 pip install -r requirements.txt
-python goodhound.py -p "neo4jpassword"
+python -m goodhound -p "neo4jpassword"
 ```
 This will process the data in neo4j and output 3 csv reports in the GoodHound directory.
 
