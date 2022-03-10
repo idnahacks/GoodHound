@@ -127,19 +127,28 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         print("## THE WEAKEST LINKS")
         print (weakest_linkdf.to_markdown(index=False))
     else:
+        htmlreportname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_report.html"
         summaryname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_summary.csv"
         busiestpathsname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
         weakestlinkname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
-        outfiles = [summaryname, busiestpathsname, weakestlinkname]
+        #for each of the reports to be created, check if there's a file with the same name in existence
+        outfiles = [htmlreportname, summaryname, busiestpathsname, weakestlinkname]
         i = 0
         for f in outfiles:
             outfiles[i] = ghutils.checkifoutfileexists(f)
             i += 1
-        summaryname = outfiles[0]
-        busiestpathsname = outfiles[1]
-        weakestlinkname = outfiles[2]
-        
+        htmlreportname = outfiles[0]
+        summaryname = outfiles[1]
+        busiestpathsname = outfiles[2]
+        weakestlinkname = outfiles[3]
+        grandtotalshtml = grandtotalsdf.to_html(index=False, justify="center")
+        busiestpathshtml = busiestpathsdf.to_html(index=False, justify="center")
+        weakestlinkshtml = weakest_linkdf.to_html(index=False, justify="center")
+        html = htmlreport(grandtotalshtml, busiestpathshtml, weakestlinkshtml)
+        #Write out files
         try:
+            with open(htmlreportname, "w") as html_file:
+                html_file.write(html)
             grandtotalsdf.to_csv(summaryname, index=False)
             busiestpathsdf.to_csv(busiestpathsname, index=False)
             weakest_linkdf.to_csv(weakestlinkname, index=False)
@@ -149,6 +158,26 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
             sys.exit(1)
 
     if not args.quiet:
-        print("CSV reports written to selected file path.")
+        print("Reports written to selected file path.")
         print("Attack Paths sniffed out. Woof woof!")
 
+def htmlreport(grandtotalshtml, busiestpathshtml, weakestlinkshtml):
+    html = """
+<html>
+<head>
+    <title>GoodHound Report</title>
+</head>
+
+<body>
+
+    <p><b>Summary</b></p>
+    %s
+    <p><b>Busiest Paths</b></p>
+    %s
+    <p><b>Weakest Links</b></p>
+    %s
+
+</body>
+
+</html>""" %(grandtotalshtml, busiestpathshtml, weakestlinkshtml)
+    return html
