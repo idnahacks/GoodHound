@@ -100,7 +100,7 @@ def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths,
     total_users_percentage = round(((totaluniqueuserswithpath/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":totaluniqueuserswithpath, "Percentage of Total Enabled Non-Admins":total_users_percentage, "Total Paths":totalpaths, "% of Paths Seen Before":seen_before/totalpaths*100, "New Paths":new_path}]
     grandtotalsdf = pd.DataFrame(grandtotals)
-    weakest_linkdf = pd.DataFrame(weakest_links, columns=["Weakest Link", "Number of Paths it appears in", "% of Total Paths"])
+    weakest_linkdf = pd.DataFrame(weakest_links, columns=["Weakest Link", "Number of Paths it appears in", "% of Total Paths", "Bloodhound Query"])
     busiestpathsdf = pd.DataFrame(top_results, columns=["Starting Node", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
     return grandtotalsdf, weakest_linkdf, busiestpathsdf
 
