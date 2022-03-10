@@ -2,6 +2,7 @@
 
 ## 1.1
 - Update the weakest links function to include bloodhound query
+- Add basic HTML report
 
 ## 1.0.1
 - Improve the ability to select the sql-path
