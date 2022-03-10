@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.1
+- Improve the ability to select the sql-path
+
 ## 1.0
 - Upload to Pypi and update installation docs
 
