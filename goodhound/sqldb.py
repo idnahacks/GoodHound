@@ -1,4 +1,4 @@
-from goodhound import neodb
+from goodhound import neodb, ghutils
 from sqlite3.dbapi2 import Error
 import sqlite3
 from pathlib import Path
@@ -20,9 +20,9 @@ def db(results, graph, args):
         first_seen INTEGER NOT NULL,
     	last_seen INTEGER NOT NULL);"""
         conn = None
+        dbpath = ghutils.checkdbfileexists(args.sql_path)
         try:
-            db = str(Path(args.sql_path)) + os.sep + 'goodhound.db'
-            conn = sqlite3.connect(db)
+            conn = sqlite3.connect(dbpath)
             c = conn.cursor()
             c.execute(table_sql)
             scandate, scandatenice = neodb.getscandate(graph)

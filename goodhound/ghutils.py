@@ -35,3 +35,15 @@ def checkoutdir(path):
             exit(1)
     else:
         os.makedirs(path, exist_ok=True)
+
+def checkdbfileexists(sqlpath):
+    """Looks at the provided sql-path argument and determines whether to create a new db or update an existing one."""
+    if Path(sqlpath).exists():
+        if Path(sqlpath).is_file():
+            dbfile = sqlpath
+        else:
+            dbfile = sqlpath + os.sep + "goodhound.db"
+    else:
+        os.makedirs(sqlpath, exist_ok=True)
+        dbfile = sqlpath + os.sep + "goodhound.db"
+    return dbfile

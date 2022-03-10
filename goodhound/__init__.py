@@ -25,7 +25,7 @@ def arguments():
     parsegroupschema.add_argument("--patch41", help="A temporary option to patch a bug in Bloodhound 4.1 relating to the highvalue attribute.", action="store_true")
     parsegroupsql = argparser.add_argument_group('SQLite Database')
     parsegroupsql.add_argument("--db-skip", help="Skips the logging of attack paths to a local SQLite Database", action="store_true")
-    parsegroupsql.add_argument("-sqlpath", "--sql-path", default=getcwd(), help="Sets the file path of the SQLite Database file goodhound.db", type=str)
+    parsegroupsql.add_argument("-sqlpath", "--sql-path", default=getcwd(), help="Sets the file path of the GoodHound Database file", type=str)
     args = argparser.parse_args()
     return args
 
