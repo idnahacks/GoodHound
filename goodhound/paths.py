@@ -157,34 +157,78 @@ def gettotaluniqueuserswithpath(groupswithmembers, userswithpath):
         if user not in uniqueusers:
             uniqueusers.append(user)
     totaluniqueuserswithpath = len(uniqueusers)
-    return totaluniqueuserswithpath   
+    return totaluniqueuserswithpath
 
-def weakestlinks(groupswithpath, totalpaths, userswithpath):
+def weakestlinks(groupswithpath, totalpaths, userswithpath, args):
     """Attempts to determine the most common weak links across all attack paths"""
     allpaths = groupswithpath + userswithpath
-    links = []
+    linkstext, linkslist = breakpathsintolinks(allpaths)
+    common_link = list(Counter(linkstext).most_common(args.results))
+    # Now we have the most common links we need to formulate the output table for the report
+    weakest_links = []
+    for x in common_link:
+        # convert to a list
+        l = list(x)
+        # calculate the percentage of all paths that this link is seen in
+        pct = round(l[1]/totalpaths*100,1)
+        l.append(pct)
+        # change the text string back into a list
+        l_list = l[0].split('->')
+        # find the index of the corresponding item in the links list
+        listindex = linkslist.index(l_list)
+        #formulate the bloodhound query by getting the nodes and rels from the links list
+        query = """match p1=shortestpath((g:Group {highvalue:FALSE})-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n1 {name:'%s'})) where g<>n1 match p2=(n1)-[:%s]->(n2 {name:'%s'}) match p3=shortestpath((n2)-[:MemberOf|HasSession|AdminTo|AllExtendedRights|AddMember|ForceChangePassword|GenericAll|GenericWrite|Owns|WriteDacl|WriteOwner|CanRDP|ExecuteDCOM|AllowedToDelegate|ReadLAPSPassword|Contains|GpLink|AddAllowedToAct|AllowedToAct|SQLAdmin|ReadGMSAPassword|HasSIDHistory|CanPSRemote|WriteSPN|AddKeyCredentialLink|AddSelf*1..]->(n3 {highvalue:true})) where n3<>n2 with p1, [p2,p3] as paths return reduce(acc = p1, x in paths | apoc.path.combine(acc, x))""" %(linkslist[listindex][0],linkslist[listindex][1],linkslist[listindex][2])
+        l.append(query)
+        weakest_links.append(l)
+    return weakest_links
+
+def breakpathsintolinks(allpaths):
+    """Takes all the paths and breaks them apart in their constituent links."""
+    linkstext = []
+    linkslist = []
     for path in allpaths:
         nodes = path.get('nodeLabels')
         rels = path.get('relLabels')
         # assembles the nodes and rels into a chain
-        chain = sum(zip(nodes, rels+[0]), ())[:-1]
-        # Divides the chains into Node-Rel-Node-Rel-Node groups as attack paths are usually "This can do that to the other. The other can then do this."
-        for c in chain[:-4:2]:
-            endlink = int(chain.index(c))+5
+        path = sum(zip(nodes, rels+[0]), ())[:-1]
+        # Divides the chains into Node-Rel-Node. Each link is 3 steps long so we end at 3 from the end of the list. We jump every other to avoid starting a link on a relationship.
+        for step in path[:-3:2]:
+            endlink = int(path.index(step))+3
             link = []
-            for ch in chain[chain.index(c):endlink]:
-                link.append(ch)
+            for p in path[path.index(step):endlink]:
+                link.append(p)
             # Makes it into a neat string
-            link = '->'.join(link)
-            links.append(link)
-    common_link = list(Counter(links).most_common(5))
-    weakest_links = []
-    for x in common_link:
-        l = list(x)
-        pct = round(l[1]/totalpaths*100,1)
-        l.append(pct)
-        weakest_links.append(l)
-    return weakest_links
+            linktext = '->'.join(link)
+            linkstext.append(linktext) 
+            linkslist.append(link)
+    return linkstext, linkslist
+
+#def weakestlinksold(groupswithpath, totalpaths, userswithpath):
+#    """Attempts to determine the most common weak links across all attack paths"""
+#    allpaths = groupswithpath + userswithpath
+#    links = []
+#    for path in allpaths:
+#        nodes = path.get('nodeLabels')
+#        rels = path.get('relLabels')
+#        # assembles the nodes and rels into a chain
+#        chain = sum(zip(nodes, rels+[0]), ())[:-1]
+#        # Divides the chains into Node-Rel-Node-Rel-Node groups as attack paths are usually "This can do that to the other. The other can then do this."
+#        for c in chain[:-4:2]:
+#            endlink = int(chain.index(c))+5
+#            link = []
+#            for ch in chain[chain.index(c):endlink]:
+#                link.append(ch)
+#            # Makes it into a neat string
+#            link = '->'.join(link)
+#            links.append(link)
+#    common_link = list(Counter(links).most_common(5))
+#    weakest_links = []
+#    for x in common_link:
+#        l = list(x)
+#        pct = round(l[1]/totalpaths*100,1)
+#        l.append(pct)
+#        weakest_links.append(l)
+#    return weakest_links
 
 def getuniquegroupswithpath(groupswithpath):
     """Gets a unique list of groups with a path"""

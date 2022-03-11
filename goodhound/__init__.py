@@ -18,7 +18,7 @@ def arguments():
     parsegroupoutput.add_argument("-v", "--verbose", help="Enables informational output.", action="store_true")
     parsegroupoutput.add_argument("--debug", help="Enables debug logging.", action="store_true")
     parsegroupqueryparams = argparser.add_argument_group('Query Parameters')
-    parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths to process. The higher the number the longer the query will take. Default: 5", type=int)
+    parsegroupqueryparams.add_argument("-r", "--results", default="5", help="The number of busiest paths and weakest links to output. Default: 5", type=int)
     parsegroupqueryparams.add_argument("-sort", "--sort", default="risk", help="Option to sort results by number of users with the path, number of hops or risk score. Default: Risk Score", type=str, choices=["users", "hops", "risk"])
     parsegroupschema = argparser.add_argument_group('Schema')
     parsegroupschema.add_argument("-sch", "--schema", help="Optionally select a text file containing custom cypher queries to add labels to the neo4j database. e.g. Use this if you want to add the highvalue label to assets that do not have this by default in the BloodHound schema.", type=str)
@@ -59,7 +59,7 @@ def main():
     uniqueresults = ghresults.getuniqueresults(results)
     top_results = ghresults.sortresults(args, uniqueresults)
     totalpaths = len(groupswithpath+userswithpath)
-    weakest_links = paths.weakestlinks(groupswithpath, totalpaths, userswithpath)
+    weakest_links = paths.weakestlinks(groupswithpath, totalpaths, userswithpath, args)
     grandtotalsdf, weakest_linkdf, busiestpathsdf = ghresults.grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths, new_path, seen_before, weakest_links, top_results)
     ghresults.output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime)
 

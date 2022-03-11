@@ -100,8 +100,9 @@ def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths,
     total_users_percentage = round(((totaluniqueuserswithpath/totalenablednonadminusers)*100),1)
     grandtotals = [{"Total Non-Admins with a Path":totaluniqueuserswithpath, "Percentage of Total Enabled Non-Admins":total_users_percentage, "Total Paths":totalpaths, "% of Paths Seen Before":seen_before/totalpaths*100, "New Paths":new_path}]
     grandtotalsdf = pd.DataFrame(grandtotals)
-    weakest_linkdf = pd.DataFrame(weakest_links, columns=["Weakest Link", "Number of Paths it appears in", "% of Total Paths"])
+    weakest_linkdf = pd.DataFrame(weakest_links, columns=["Weakest Link", "Number of Paths it appears in", "% of Total Paths", "Bloodhound Query"])
     busiestpathsdf = pd.DataFrame(top_results, columns=["Starting Node", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
+    busiestpathsdf = busiestpathsdf.drop(columns=["UID"])
     return grandtotalsdf, weakest_linkdf, busiestpathsdf
 
 def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime):
@@ -127,19 +128,28 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         print("## THE WEAKEST LINKS")
         print (weakest_linkdf.to_markdown(index=False))
     else:
+        htmlreportname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_report.html"
         summaryname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_summary.csv"
         busiestpathsname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_busiestpaths.csv"
         weakestlinkname = str(Path(args.output_dir)) + os.sep + f"{scandatenice}" + "_GoodHound_weakestlinks.csv"
-        outfiles = [summaryname, busiestpathsname, weakestlinkname]
+        #for each of the reports to be created, check if there's a file with the same name in existence
+        outfiles = [htmlreportname, summaryname, busiestpathsname, weakestlinkname]
         i = 0
         for f in outfiles:
             outfiles[i] = ghutils.checkifoutfileexists(f)
             i += 1
-        summaryname = outfiles[0]
-        busiestpathsname = outfiles[1]
-        weakestlinkname = outfiles[2]
-        
+        htmlreportname = outfiles[0]
+        summaryname = outfiles[1]
+        busiestpathsname = outfiles[2]
+        weakestlinkname = outfiles[3]
+        grandtotalshtml = grandtotalsdf.to_html(index=False)
+        busiestpathshtml = busiestpathsdf.to_html(index=False)
+        weakestlinkshtml = weakest_linkdf.to_html(index=False)
+        html = htmlreport(grandtotalshtml, busiestpathshtml, weakestlinkshtml)
+        #Write out files
         try:
+            with open(htmlreportname, "w") as html_file:
+                html_file.write(html)
             grandtotalsdf.to_csv(summaryname, index=False)
             busiestpathsdf.to_csv(busiestpathsname, index=False)
             weakest_linkdf.to_csv(weakestlinkname, index=False)
@@ -149,6 +159,90 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
             sys.exit(1)
 
     if not args.quiet:
-        print("CSV reports written to selected file path.")
+        print("Reports written to selected file path.")
         print("Attack Paths sniffed out. Woof woof!")
 
+def htmlreport(grandtotalshtml, busiestpathshtml, weakestlinkshtml):
+    html = """
+<html>
+<head>
+    <title>GoodHound Report</title>
+    <style>
+body {
+  background-color: linen;
+}
+table {
+    border-collapse: collapse;
+    font-family: helvetica;
+    table-layout: auto;
+    width: 100%s
+}
+th {border:  1px solid;
+      padding: 10px;
+      min-width: 100px;
+      background: MediumSeaGreen;
+      box-sizing: border-box;
+      text-align: center;
+      font-size: 16px
+}
+
+td {
+  border:  1px solid;
+      padding: 10px;
+      min-width: 100px;
+      background: white;
+      box-sizing: border-box;
+      text-align: center;
+      font-size: 12px
+}
+
+h1 {
+  font-size: 24px;
+  font-family: helvetica;
+  text-align: center;
+}
+
+h2 {
+  font-size: large;
+  font-family: helvetica;
+  text-align: center;
+}
+
+.table-container-summary {
+  position: relative;
+  max-height:  300px;
+  width: 1500px;
+}
+
+.table-container-detail {
+  position: relative;
+  max-height:  1500px;
+  overflow: scroll;
+}
+
+.subtitle-link {
+    text-align: center;
+    font-family: helvetica;
+    font-size: 16px;
+}
+</style>
+</head>
+<body>
+<h1>GoodHound Attack Path Report</h1>
+<p class="subtitle-link"><a href="https://github.com/idnahacks/GoodHound" target="_blank">https://github.com/idnahacks/GoodHound</a></p>
+    <h2>Summary</h2>
+      <div class="table-container-summary">
+      %s
+      </div>
+    <h2>Busiest Paths</h2>
+      <div class="table-container-detail">
+      %s
+      </div>
+    <h2>Weakest Links</h2>
+      <div class="table-container-detail">
+      %s
+      </div>
+</body>
+
+</html>""" %("%", grandtotalshtml, busiestpathshtml, weakestlinkshtml)
+    return html
