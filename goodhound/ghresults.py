@@ -239,6 +239,7 @@ h2 {
       %s
       </div>
     <h2>Weakest Links</h2>
+    <p><b>NB. To use the weakest link queries you will need to have the Neo4j APOC plugin installed.</b></p>
       <div class="table-container-detail">
       %s
       </div>
