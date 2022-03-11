@@ -102,6 +102,7 @@ def grandtotals(totaluniqueuserswithpath, totalenablednonadminusers, totalpaths,
     grandtotalsdf = pd.DataFrame(grandtotals)
     weakest_linkdf = pd.DataFrame(weakest_links, columns=["Weakest Link", "Number of Paths it appears in", "% of Total Paths", "Bloodhound Query"])
     busiestpathsdf = pd.DataFrame(top_results, columns=["Starting Node", "Number of Enabled Non-Admins with Path", "Percent of Total Enabled Non-Admins with Path", "Number of Hops", "Exploit Cost", "Risk Score", "Path", "Bloodhound Query", "UID"])
+    busiestpathsdf = busiestpathsdf.drop(columns=["UID"])
     return grandtotalsdf, weakest_linkdf, busiestpathsdf
 
 def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, starttime):
@@ -141,9 +142,9 @@ def output(args, grandtotalsdf, weakest_linkdf, busiestpathsdf, scandatenice, st
         summaryname = outfiles[1]
         busiestpathsname = outfiles[2]
         weakestlinkname = outfiles[3]
-        grandtotalshtml = grandtotalsdf.to_html(index=False, justify="center")
-        busiestpathshtml = busiestpathsdf.to_html(index=False, justify="center")
-        weakestlinkshtml = weakest_linkdf.to_html(index=False, justify="center")
+        grandtotalshtml = grandtotalsdf.to_html(index=False)
+        busiestpathshtml = busiestpathsdf.to_html(index=False)
+        weakestlinkshtml = weakest_linkdf.to_html(index=False)
         html = htmlreport(grandtotalshtml, busiestpathshtml, weakestlinkshtml)
         #Write out files
         try:
@@ -166,18 +167,82 @@ def htmlreport(grandtotalshtml, busiestpathshtml, weakestlinkshtml):
 <html>
 <head>
     <title>GoodHound Report</title>
+    <style>
+body {
+  background-color: linen;
+}
+table {
+    border-collapse: collapse;
+    font-family: helvetica;
+    table-layout: auto;
+    width: 100%s
+}
+th {border:  1px solid;
+      padding: 10px;
+      min-width: 100px;
+      background: MediumSeaGreen;
+      box-sizing: border-box;
+      text-align: center;
+      font-size: 16px
+}
+
+td {
+  border:  1px solid;
+      padding: 10px;
+      min-width: 100px;
+      background: white;
+      box-sizing: border-box;
+      text-align: center;
+      font-size: 12px
+}
+
+h1 {
+  font-size: 24px;
+  font-family: helvetica;
+  text-align: center;
+}
+
+h2 {
+  font-size: large;
+  font-family: helvetica;
+  text-align: center;
+}
+
+.table-container-summary {
+  position: relative;
+  max-height:  300px;
+  width: 1500px;
+}
+
+.table-container-detail {
+  position: relative;
+  max-height:  1500px;
+  overflow: scroll;
+}
+
+.subtitle-link {
+    text-align: center;
+    font-family: helvetica;
+    font-size: 16px;
+}
+</style>
 </head>
-
 <body>
-
-    <p><b>Summary</b></p>
-    %s
-    <p><b>Busiest Paths</b></p>
-    %s
-    <p><b>Weakest Links</b></p>
-    %s
-
+<h1>GoodHound Attack Path Report</h1>
+<p class="subtitle-link"><a href="https://github.com/idnahacks/GoodHound" target="_blank">https://github.com/idnahacks/GoodHound</a></p>
+    <h2>Summary</h2>
+      <div class="table-container-summary">
+      %s
+      </div>
+    <h2>Busiest Paths</h2>
+      <div class="table-container-detail">
+      %s
+      </div>
+    <h2>Weakest Links</h2>
+      <div class="table-container-detail">
+      %s
+      </div>
 </body>
 
-</html>""" %(grandtotalshtml, busiestpathshtml, weakestlinkshtml)
+</html>""" %("%", grandtotalshtml, busiestpathshtml, weakestlinkshtml)
     return html
