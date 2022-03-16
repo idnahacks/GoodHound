@@ -228,6 +228,7 @@ h2 {
 </style>
 </head>
 <body>
+<p align="center"><img src="https://github.com/idnahacks/GoodHound/blob/main/images/logo.png?raw=true"></p>
 <h1>GoodHound Attack Path Report</h1>
 <p class="subtitle-link"><a href="https://github.com/idnahacks/GoodHound" target="_blank">https://github.com/idnahacks/GoodHound</a></p>
     <h2>Summary</h2>
