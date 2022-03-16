@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1
+- Add logo to report (Important stuff!)
+
 ## 1.1
 - Update the weakest links function to include bloodhound query
 - Add basic HTML report
