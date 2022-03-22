@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+- Fix bug with userpath call
+- Move hosted image away from github
+
 ## 1.1.1
 - Add logo to report (Important stuff!)
 
