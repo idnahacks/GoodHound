@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "GoodHound"
+version = "0.1.0"
+description = "A tool to find vulnerabilities in Active Directory environments"
+authors = ["idnahacks <email@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/idnahacks/GoodHound"
+repository = "https://github.com/idnahacks/GoodHound"
+keywords = ["active directory", "vulnerability", "security", "audit"]
+
+  [tool.poetry.dependencies]
+  pandas = "*"
+  py2neo = "*"
+
+  [tool.poetry.scripts]
+  GoodHound = "goodhound.__init__:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
