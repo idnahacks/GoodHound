@@ -1,8 +1,8 @@
-from sys import platform, exit
+import os
+from sys import exit
 from pathlib import Path
 from datetime import datetime
 import logging
-import os
 
 def getlistindex(lst, key, value):
     for index, dic in enumerate(lst):
@@ -10,8 +10,8 @@ def getlistindex(lst, key, value):
             return index
 
 def getos():
-    os = platform
-    return os
+    _platform = platform
+    return _platform
 
 def banner():
     print("""   ______                ____  __                      __""")
